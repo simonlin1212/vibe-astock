@@ -3222,10 +3222,40 @@ class TestPastSessionsStayViewable:
 
         r = mf.feedback_matrix("2026-07-29")
         assert r["available"] is True and r["source"] == "settled"
-        assert set(r["matrix"]) == {"首板", "2板", "3板及以上"}
-        assert r["matrix"]["3板及以上"]["晋级涨停"] == 1
+        assert set(r["matrix"]) == {"首板", "2板", "3板"}
+        assert r["matrix"]["3板"]["晋级涨停"] == 1
         assert r["matrix"]["2板"]["跌超5%"] == 1
         assert "炸板" in r["note"], "缺的那一档要说出来"
+
+
+@pytest.mark.unit
+class TestBoardLabel:
+    """连板标注：反包票要写「N天M板」，不能被东财连板数=1 抹成「1板」。
+
+    欢瑞世纪 2026-07-31 就是实例：东财「连板数」给 1（断板后重新涨停），
+    「涨停统计」给 "3/2"。只写「1板」会把题材回流反包的结构完全隐藏。
+    """
+
+    def test_fanbao_uses_zt_stat(self):
+        from duanxian.market_facts import board_label
+
+        assert board_label(1, "3/2") == "3天2板"
+        assert board_label(1, "4/2") == "4天2板"
+
+    def test_normal_consec_uses_boards(self):
+        from duanxian.market_facts import board_label
+
+        assert board_label(3, "3/3") == "3板"
+        assert board_label(9, "9/9") == "9板"
+        assert board_label(2, None) == "2板"
+        assert board_label(1, "") == "1板"
+
+    def test_garbage_stat_falls_back(self):
+        from duanxian.market_facts import board_label, stat_boards
+
+        assert board_label(2, "乱码") == "2板"
+        assert stat_boards("3/2") == 2
+        assert stat_boards(None) == 0
 
     def test_docs_dont_claim_intraday_cannot_compute(self):
         """README 不许再说「盘中算不了、等收盘再跑」——那是改之前的行为。

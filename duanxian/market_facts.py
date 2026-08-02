@@ -40,6 +40,33 @@ def is_limit_up(ret: float, code: str, name: str = "", tol: float = 0.3) -> bool
     return ret >= limit_pct(code, name) - tol
 
 
+def board_label(boards: int, zt_stat: Optional[str] = None) -> str:
+    """连板标注：普通连板写「N板」；断板后反包的（东财涨停统计 N/M，N > M）写「N天M板」。
+
+    东财「连板数」对反包票只给 1（今天重新涨停），单看它会写成「1板」，
+    把「3天2板」这种回流反包结构完全抹掉 —— 所以优先用涨停统计。
+    """
+    if zt_stat:
+        try:
+            d, b = str(zt_stat).split("/")
+            d, b = int(d), int(b)
+            if b > 0 and d > b:
+                return f"{d}天{b}板"
+            if b > 0:
+                return f"{b}板"
+        except (ValueError, TypeError):
+            pass
+    return f"{int(boards or 1)}板"
+
+
+def stat_boards(zt_stat: Optional[str]) -> int:
+    """涨停统计「N/M」里的 M（有效高度）。取不到给 0。"""
+    try:
+        return int(str(zt_stat).split("/")[1])
+    except (ValueError, TypeError, IndexError, AttributeError):
+        return 0
+
+
 # ---------------------------------------------------------------- 三池明细
 def _df_rows(df, mapping: dict[str, str]) -> list[dict]:
     """DataFrame → list[dict]，按 mapping 取列（缺列给 None，不让整表报废）。"""
@@ -65,7 +92,7 @@ _ZT_MAP = {
     "code": "代码", "name": "名称", "ret": "涨跌幅", "amount": "成交额",
     "turnover": "换手率", "seal_fund": "封板资金", "first_seal": "首次封板时间",
     "last_seal": "最后封板时间", "broken_times": "炸板次数", "boards": "连板数",
-    "sector": "所属行业",
+    "zt_stat": "涨停统计", "sector": "所属行业",
 }
 _ZB_MAP = {
     "code": "代码", "name": "名称", "ret": "涨跌幅", "turnover": "换手率",
@@ -323,7 +350,8 @@ def feedback_matrix(date: str, prev: Optional[str] = None) -> dict:
         got = [r for r in srows if r.get("ret") is not None]
         if got:
             def tier(b: int) -> str:
-                return "首板" if b <= 1 else ("2板" if b == 2 else "3板及以上")
+                # 板位写具体高度（3板/4板/…/9板），不再笼统归成「3板及以上」
+                return "首板" if b <= 1 else f"{b}板"
 
             matrix: dict[str, dict] = {}
             details: list[dict] = []
@@ -383,9 +411,7 @@ def feedback_matrix(date: str, prev: Optional[str] = None) -> dict:
             return "昨日炸板"
         if b == 1:
             return "首板"
-        if b == 2:
-            return "2板"
-        return "3板及以上"
+        return f"{b}板"   # 同定稿路径：写具体高度，不归并「3板及以上」
 
     matrix: dict[str, dict] = {}
     details: list[dict] = []

@@ -151,6 +151,7 @@ def build(date: str, prev: Optional[str] = None, top: int = 10) -> dict:
             continue                 # 问财有、东财涨停池没有 → 不计入覆盖
         matched += 1
         b = int(r.get("boards") or 1)
+        stat = str(r.get("zt_stat") or "") or None
         t = str(r.get("first_seal") or "").strip()
         for tag in _tags(reason):
             grp = g(tag)
@@ -164,6 +165,9 @@ def build(date: str, prev: Optional[str] = None, top: int = 10) -> dict:
                 grp["seal_times"].append(t)
             grp["members"].append({
                 "code": r["code"], "name": r["name"], "boards": b,
+                "zt_stat": stat, "label": mf.board_label(b, stat),
+                # 反包票（3天2板）东财连板数只给 1，排序按有效高度，别沉到榜尾
+                "_h": max(b, mf.stat_boards(stat)),
                 "first_seal": t or None, "broken_times": int(r.get("broken_times") or 0),
             })
 
@@ -204,7 +208,9 @@ def build(date: str, prev: Optional[str] = None, top: int = 10) -> dict:
                                     if grp["prev_members"] else None)
         # 状态标签只由客观读数推出，不含前瞻判断
         grp["state"] = _state_of(grp, has_prev_reasons)
-        grp["members"] = sorted(grp["members"], key=lambda x: -x["boards"])[:8]
+        grp["members"] = sorted(grp["members"], key=lambda x: -x["_h"])[:8]
+        for m in grp["members"]:
+            m.pop("_h", None)
         out.append(grp)
     out.sort(key=lambda x: (-x["limit_up"], -x["highest"]))
 
@@ -272,7 +278,7 @@ def render(tree: dict) -> str:
             seg += f"；昨日该题材{t['prev_members']}只涨停，今日仍涨停{t['prev_still_up']}只"
             if cr is not None:
                 seg += f"（延续率{cr:.0%}）"
-        names = "、".join(f"{m['name']}{m['boards']}板" for m in t["members"][:3])
+        names = "、".join(f"{m['name']}{m.get('label') or str(m['boards']) + '板'}" for m in t["members"][:3])
         if names:
             seg += f"；代表：{names}"
         lines.append(seg)

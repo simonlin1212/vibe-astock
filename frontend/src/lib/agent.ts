@@ -268,7 +268,7 @@ export interface ThemeNode {
   /** 昨日该题材涨停股今天还剩多少仍涨停 */
   prev_members: number; prev_still_up: number; prev_broken_or_down: number;
   continuation_rate: number | null;
-  members: { code: string; name: string; boards: number; first_seal: string | null; broken_times: number }[];
+  members: { code: string; name: string; boards: number; label?: string; zt_stat?: string | null; first_seal: string | null; broken_times: number }[];
 }
 export interface ThemeTree extends FactBase {
   date?: string; prev_date?: string; tag_count?: number;

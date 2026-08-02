@@ -65,7 +65,11 @@ export function Section({
 /** 昨日强势股反馈矩阵：按昨日板位分组，看今天各落到什么结果 */
 export function Matrix({ fm }: { fm?: FeedbackMatrix }) {
   const matrix = safeRecord<FeedbackCell>(fm?.matrix);
-  const tiers = ["首板", "2板", "3板及以上", "昨日炸板"].filter((t) => matrix[t]);
+  // 板位写具体高度（首板/2板/3板/…/9板），档位动态从 matrix 键生成：
+  // 首板固定最前、「昨日炸板」固定最后，中间按数字升序
+  const tierOrder = (t: string) =>
+    t === "首板" ? 1 : t === "昨日炸板" ? Number.MAX_SAFE_INTEGER : (parseInt(t, 10) || Number.MAX_SAFE_INTEGER - 1);
+  const tiers = Object.keys(matrix).sort((a, b) => tierOrder(a) - tierOrder(b));
   const cols = ["晋级涨停", "收红", "小跌", "跌超5%", "跌停"] as const;
   return (
     <Section
@@ -360,10 +364,10 @@ export function ThemeTreeView({ t }: { t?: ThemeTree }) {
                       {n.continuation_rate != null && `（延续 ${rate(n.continuation_rate)}）`}
                     </span>
                   )}
-                  {safeArray<{ name: string; boards: number }>(n.members).length > 0 && (
+                  {safeArray<{ name: string; boards: number; label?: string }>(n.members).length > 0 && (
                     <span className="truncate opacity-70">
-                      {safeArray<{ name: string; boards: number }>(n.members).slice(0, 4)
-                        .map((m) => `${m.name}${m.boards}板`).join("、")}
+                      {safeArray<{ name: string; boards: number; label?: string }>(n.members).slice(0, 4)
+                        .map((m) => `${m.name}${m.label ?? `${m.boards}板`}`).join("、")}
                     </span>
                   )}
                 </div>
