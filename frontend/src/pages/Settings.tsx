@@ -20,7 +20,9 @@ export function Settings() {
   const [cliId, setCliId] = useState(existing && existingIsCli ? existing.model : "");
   // API：选中的模型 id + 可编辑的 baseURL / model / key
   const firstApi = apiModels[0];
-  const [apiId, setApiId] = useState(existing && !existingIsCli ? existing.model : firstApi.id);
+  // ponytail: custom model not in preset list → select won't match any option → fallback to first item
+  const matchedApi = existing && !existingIsCli ? apiModels.find((m) => m.id === existing.model) : null;
+  const [apiId, setApiId] = useState(matchedApi ? matchedApi.id : "custom");
   const [baseURL, setBaseURL] = useState(existing && !existingIsCli ? existing.baseURL : (PROVIDER_BASE[firstApi.provider] || ""));
   const [modelName, setModelName] = useState(existing && !existingIsCli ? existing.model : firstApi.id);
   const [apiKey, setApiKey] = useState(existing && !existingIsCli ? existing.apiKey : "");
