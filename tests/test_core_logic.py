@@ -4431,3 +4431,102 @@ class TestVerificationItemsCarryBaseline:
         assert rs._with_baselines(None) is None
         assert rs._with_baselines({"focus": None}) == {"focus": None}
         assert rs._with_baselines({}) == {}
+
+
+# ---------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
+# 文本态工具调用兜底（Qwen3 系在 vLLM 下概率性把工具调用写成纯文本）
+# 块样本一律用拼接构造 —— 本测试文件里绝不出现连续的坏样本，
+# 否则任何读这个文件的 LLM 都可能被它带偏（同因）。
+class TestTextModeToolcallFallback:
+    """模型把工具调用写成正文文本时：真实执行 + 剥掉标记 + 结构化回灌。"""
+
+    @staticmethod
+    def _param(k, v):
+        lt, gt = chr(0x3C), chr(0x3E)
+        return lt + "parameter name=" + chr(34) + k + chr(34) + gt + v + lt + "/parameter" + gt
+
+    @staticmethod
+    def _block(name="query_news", params=None):
+        lt, gt = chr(0x3C), chr(0x3E)
+        body = "".join(TestTextModeToolcallFallback._param(k, v)
+                       for k, v in (params or {"code": "603237"}).items())
+        return lt + "function=" + name + gt + body + lt + "/function=" + name + gt
+
+    def test_extract_finds_block_and_cleans(self):
+        import server  # noqa: F401  确保 vr/ 进 sys.path
+        import chat
+        text = "我先查一下最新消息。\n" + self._block() + "\n以上是查询动作。"
+        calls, cleaned = chat._extract_text_toolcalls(text)
+        assert calls == [("query_news", {"code": "603237"})], calls
+        assert "function=" not in cleaned and "parameter" not in cleaned
+        assert "我先查一下最新消息" in cleaned and "以上是查询动作" in cleaned
+
+    def test_extract_keeps_markdown_code_blocks(self):
+        import server  # noqa: F401
+        import chat
+        code_block = "```python\nprint('hi')\n```"
+        calls, cleaned = chat._extract_text_toolcalls("示例：\n" + code_block + "\n结束")
+        assert calls == []
+        assert "print('hi')" in cleaned
+
+    def test_strip_args_drops_custom_keys(self):
+        import server  # noqa: F401
+        import chat
+        raw = {"code": "603237", "limit": "20"}
+        kept = chat._strip_args_to_schema("query_news", raw)
+        assert kept == {"code": "603237"}, kept
+
+    def test_unclosed_block_is_stripped(self):
+        import server  # noqa: F401
+        import chat
+        lt, gt = chr(0x3C), chr(0x3E)
+        half = "正文前半。\n" + lt + "function=query_news" + gt + self._param("code", "603237")
+        calls, cleaned = chat._extract_text_toolcalls(half)
+        assert calls == []
+        assert cleaned == "正文前半。", repr(cleaned)
+
+    def test_stream_executes_textmode_feeds_structured(self, monkeypatch):
+        """端到端：文本态块 → 工具真执行、流里不出现标记、回灌是结构化 tool_calls。"""
+        import server  # noqa: F401
+        import chat
+
+        cfg = {"provider": "openai-compatible", "baseURL": "http://127.0.0.1:1/v1",
+               "apiKey": "***", "model": "m"}
+        state = {"round": 0}
+        fed_back = []
+
+        def fake_iter_sse(resp):
+            # 每轮迭代前推进轮号（与 run_chat_stream 里「先 call 再 iter」对齐）
+            state["round"] += 1
+            if state["round"] == 1:
+                yield {"content": "我来查。\n"}
+                yield {"content": self._block()}
+                yield {"content": "\n"}
+            else:
+                yield {"content": "基于新闻：题材是XX。"}
+
+        def fake_call_llm_stream(c, messages, use_tools):
+            for m in messages:
+                if m.get("role") == "assistant" and m.get("tool_calls"):
+                    fed_back.append(m)
+            return object()
+
+        monkeypatch.setattr(chat, "_iter_sse_deltas", fake_iter_sse)
+        monkeypatch.setattr(chat, "_call_llm_stream", fake_call_llm_stream)
+        monkeypatch.setattr(chat, "_exec_tool",
+                            lambda name, args: {"ok": name, **args})
+
+        ev = list(chat.run_chat_stream(cfg, [{"role": "user", "content": "分析603237"}]))
+        types = [e["type"] for e in ev]
+        deltas = "".join(e["text"] for e in ev if e["type"] == "delta")
+        assert "function=" not in deltas and "parameter" not in deltas, repr(deltas)
+        assert "我来查。" in deltas and "基于新闻：题材是XX。" in deltas
+        tools = [e for e in ev if e["type"] == "tool"]
+        assert tools and tools[0]["tool"] == "query_news", tools
+        assert tools[0]["args"] == {"code": "603237"}, tools[0]
+        # 回灌给模型的 assistant 消息必须是结构化 tool_calls、不带坏文本
+        assert fed_back and fed_back[0].get("content") in (None, "")
+        assert fed_back[0]["tool_calls"][0]["function"]["name"] == "query_news"
+        assert types[-1] == "done"

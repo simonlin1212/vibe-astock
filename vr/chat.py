@@ -52,6 +52,7 @@ A 股用 query_quote / query_valuation / query_reports / query_news（传 6 位�
 - 需要数据时先调工具拿客观数据，再基于数据回答；不要编造数字。
 - 涉及个股时用工具查到的真实数据；讲清多空两面与风险，让用户自己判断。
 - 用简洁中文回答。
+- 调用工具必须使用系统工具调用协议（function calling），**严禁**在正文里用 ``` 代码块、尖括号标签等文字形式书写工具调用；正文只写最终给用户的分析文字。
 
 {ANALYSIS_FRAMEWORK}
 
@@ -145,6 +146,73 @@ def _exec_tool(name: str, args: dict):
         return {"error": str(e)}
     except Exception as e:  # noqa: BLE001 — 工具错误回喂给模型，不中断循环
         return {"error": f"{name} 执行失败：{e}"}
+
+
+# ---------------------------------------------------------------------------
+# 文本态工具调用兜底（Qwen3 系在 vLLM 下的已知退化，2026-08 实测复现）
+#
+# 该模型概率性地把工具调用写成**纯文本**（而非原生 tool_calls 字段），且自创参数键
+# （如 limit）、收尾标签不稳定。这类文本会原样流到前端变成「看到的报错」，
+# 回灌给模型后下一轮还可能模仿坏格式继续退化/重复。三层防线：
+#   1. 识别并**真实执行**这些文本态调用（用户拿到数据答案，不是原始标记）；
+#   2. 参数只保留协议 schema 声明过的键（丢掉 limit 这类自创参数）；
+#   3. 块未闭合时（流被截断 / 模型只写了一半）整块剥掉，不露给用户。
+# 注：块里的标签名在正则中一律用拼接构造，避免源码文本本身长成坏样本。
+import re as _re
+import uuid as _uuid
+
+_LT = chr(0x3C)
+_TOOL_NAMES = "query_quote|query_valuation|query_reports|query_news|query_global_stock"
+
+# 完整块：可选 ``` 前缀 + 名字标签 + 参数对 + 名字闭标签 + 可选 ``` 后缀
+_TEXT_BLOCK_RE = _re.compile(
+    r"(?:```[ \t]*)?" + _LT + r"\s*function="
+    r"([A-Za-z_][\w.]*)" + r"\s*" + chr(0x3E)
+    + r"((?:" + _LT + r"\s*parameter[^" + chr(0x3E) + r"]*" + chr(0x3E) + r"[\s\S]*?"
+    + _LT + r"/\s*parameter\s*" + chr(0x3E) + r")*)"
+    + _LT + r"/\s*function=\s*\1\s*" + chr(0x3E)
+    + r"(?:[ \t]*```)?",
+)
+# 参数对：兼容 name="X" 与 =X 两种写法
+_PARAM_RE = _re.compile(
+    _LT + r"\s*parameter(?:\s+name=[\"']([\w.]+)[\"']|=([\w.]+))\s*"
+    + chr(0x3E) + r"([\s\S]*?)"
+    + _LT + r"/\s*parameter\s*" + chr(0x3E),
+)
+_OPENER_RE = _re.compile(r"(?:```[ \t]*)?" + _LT + r"\s*function=")
+
+
+def _parse_params(area: str) -> dict:
+    out = {}
+    for k1, k2, v in _PARAM_RE.findall(area or ""):
+        out[k1 or k2] = v.strip()
+    return out
+
+
+def _extract_text_toolcalls(content: str):
+    """从纯文本里抽文本态工具调用。返回 (calls, cleaned)：
+    calls = [(name, {arg: val}), ...]；cleaned = 剥掉完整块与未闭合残留后的文本。"""
+    calls: list[tuple[str, dict]] = []
+
+    def _repl(m):
+        calls.append((m.group(1), _parse_params(m.group(2))))
+        return ""
+
+    text = _TEXT_BLOCK_RE.sub(_repl, content)
+    om = _OPENER_RE.search(text)   # 块开了没收 → 流被截断/模型写一半，整段剥掉
+    if om:
+        text = text[: om.start()]
+    return calls, text.strip()
+
+
+def _strip_args_to_schema(name: str, raw: dict) -> dict:
+    """只保留协议 schema 声明过的参数键 —— 丢模型自创的（如 limit）。"""
+    fn = next((t.get("function", {}) for t in TOOLS
+               if t.get("function", {}).get("name") == name), None)
+    if not fn:
+        return {}
+    allowed = set((fn.get("parameters") or {}).get("properties") or {})
+    return {k: v for k, v in raw.items() if k in allowed}
 
 
 # —— 防 SSRF：用户可自带 OpenAI 兼容端点，但后端替其发请求前要挡住指向云元数据/内网的地址 ——
@@ -317,20 +385,51 @@ def _iter_sse_deltas(resp):
                 yield choices[0].get("delta") or {}
 
 
+def _safe_prefix(content: str) -> str:
+    """流式安全前缀：从**最后一个**文本态块 opener 起截断。
+
+    模型还在吐文本态工具调用时（开标签已见、闭标签未齐），opener 之后的内容
+    先扣住不显示；块完整了轮末统一执行剥离，块没写完（截断/退化）也整体丢弃。
+    普通 Markdown 代码块不带 `function=`，不受影响。
+    """
+    last = len(content)   # 没找到 opener → 全部安全
+    for m in _OPENER_RE.finditer(content):
+        last = m.start()
+    return content[:last]
+
+
 def run_chat_stream(cfg: dict, user_messages: list, context: str = ""):
-    """API 接入流式：function-calling 循环，边流答案边推工具调用事件。"""
+    """API 接入流式：function-calling 循环，边流答案边推工具调用事件。
+
+    文本态兜底（Qwen3 系在 vLLM 下的已知退化）：模型概率性把工具调用写成纯文本。
+    流式期间用 `_safe_prefix` 把"可能正在写块"的尾巴扣住；轮末若检出完整块，
+    就**真实执行**工具、以结构化 tool_calls 回灌（不带坏文本，掐断模仿链）。
+    """
     messages = [{"role": "system", "content": SYSTEM_PROMPT.format(context=context or "（无）")}]
     messages.extend(user_messages)
     trace: list[dict] = []
+    executed: dict[tuple, object] = {}   # (name, args_json) → 结果，防模型重复调用同一查询
+
+    def _run(name: str, args: dict):
+        k = (name, json.dumps(args, ensure_ascii=False, sort_keys=True))
+        if k in executed:
+            return executed[k]
+        result = _exec_tool(name, args)
+        executed[k] = result
+        return result
 
     for rnd in range(1, MAX_ROUNDS + 1):
         resp = _call_llm_stream(cfg, messages, use_tools=True)
         content_parts: list[str] = []
+        flushed = 0                 # 已推给前端的正文长度（只增不减）
         tool_acc: dict[int, dict] = {}
         for delta in _iter_sse_deltas(resp):
             if delta.get("content"):
                 content_parts.append(delta["content"])
-                yield {"type": "delta", "text": delta["content"]}
+                safe = _safe_prefix("".join(content_parts))
+                if len(safe) > flushed:
+                    yield {"type": "delta", "text": safe[flushed:]}
+                    flushed = len(safe)
             for tc in (delta.get("tool_calls") or []):
                 idx = tc.get("index")
                 if idx is None:
@@ -349,36 +448,78 @@ def run_chat_stream(cfg: dict, user_messages: list, context: str = ""):
                 if fn.get("arguments"):
                     acc["arguments"] += fn["arguments"]
 
-        if not tool_acc:  # 本轮是纯答案（已流完）→ 结束
-            yield {"type": "done", "trace": trace, "rounds": rnd}
-            return
-
-        # 有工具调用：回填 assistant 消息 + 执行工具 + 推事件
-        messages.append({
-            "role": "assistant",
-            "content": "".join(content_parts) or None,
-            "tool_calls": [{
-                "id": tool_acc[i]["id"], "type": "function",
-                "function": {"name": tool_acc[i]["name"], "arguments": tool_acc[i]["arguments"]},
-            } for i in sorted(tool_acc)],
-        })
-        for i in sorted(tool_acc):
-            a = tool_acc[i]
-            try:
-                args = json.loads(a["arguments"] or "{}")
-            except json.JSONDecodeError:
-                args = {}
-            yield {"type": "tool", "tool": a["name"], "args": args}
-            result = _exec_tool(a["name"], args)
-            trace.append({"tool": a["name"], "args": args})
+        if tool_acc:
+            # 原生结构化工具调用：扣住的尾巴若有文本也补发（轮末已确认不是文本态块）
+            tail = "".join(content_parts)[flushed:]
+            if tail.strip():
+                yield {"type": "delta", "text": tail}
+            # 回填 assistant 消息 + 执行工具 + 推事件
             messages.append({
-                "role": "tool", "tool_call_id": a["id"],
-                "content": json.dumps(result, ensure_ascii=False)[:_TOOL_RESULT_CAP],
+                "role": "assistant",
+                "content": "".join(content_parts) or None,
+                "tool_calls": [{
+                    "id": tool_acc[i]["id"] or f"call_{_uuid.uuid4().hex[:8]}",
+                    "type": "function",
+                    "function": {"name": tool_acc[i]["name"], "arguments": tool_acc[i]["arguments"]},
+                } for i in sorted(tool_acc)],
             })
+            for i in sorted(tool_acc):
+                a = tool_acc[i]
+                try:
+                    args = json.loads(a["arguments"] or "{}")
+                except json.JSONDecodeError:
+                    args = {}
+                yield {"type": "tool", "tool": a["name"], "args": args}
+                _run(a["name"], args)
+                trace.append({"tool": a["name"], "args": args})
+                messages.append({
+                    "role": "tool", "tool_call_id": a["id"],
+                    "content": json.dumps(_run(a["name"], args), ensure_ascii=False)[:_TOOL_RESULT_CAP],
+                })
+            continue
 
-    # 超过最大轮数：不带工具收尾（非流式一次拿完再吐）
+        # 本轮没有原生 tool_calls —— 扣住的尾巴里有没有文本态工具调用？
+        full = "".join(content_parts)
+        text_calls, cleaned = _extract_text_toolcalls(full)
+        if text_calls:
+            # 真实执行 + 把块前面的干净正文补发给前端 + 结构化回灌
+            tail_clean = cleaned
+            if tail_clean[flushed:].strip():
+                yield {"type": "delta", "text": tail_clean[flushed:]}
+            tc_out = []
+            for name, raw in text_calls:
+                args = _strip_args_to_schema(name, raw)
+                tc_out.append({"id": f"call_{_uuid.uuid4().hex[:8]}", "type": "function",
+                               "function": {"name": name, "arguments": json.dumps(args, ensure_ascii=False)}})
+                yield {"type": "tool", "tool": name, "args": args}
+                _run(name, args)
+                trace.append({"tool": name, "args": args})
+            # assistant 只带结构化 tool_calls、不带原始坏文本 → 模型下一轮照着协议走
+            messages.append({"role": "assistant", "content": None, "tool_calls": tc_out})
+            for t in tc_out:
+                fn_name = t["function"]["name"]
+                try:
+                    fn_args = json.loads(t["function"]["arguments"] or "{}")
+                except json.JSONDecodeError:
+                    fn_args = {}
+                messages.append({
+                    "role": "tool", "tool_call_id": t["id"],
+                    "content": json.dumps(_run(fn_name, fn_args), ensure_ascii=False)[:_TOOL_RESULT_CAP],
+                })
+            continue
+
+        # 纯答案（已流完）→ 把扣住的尾巴（已剥离残留片段）补发，结束
+        if tail_clean := (cleaned[flushed:] if cleaned != full else full[flushed:]):
+            if tail_clean.strip():
+                yield {"type": "delta", "text": tail_clean}
+        yield {"type": "done", "trace": trace, "rounds": rnd}
+        return
+
+    # 超过最大轮数：不带工具收尾（非流式一次拿完再吐），同样剥掉文本态残留
     data = _call_llm(cfg, messages, use_tools=False)
-    yield {"type": "delta", "text": data["choices"][0]["message"].get("content") or ""}
+    tail = data["choices"][0]["message"].get("content") or ""
+    _, tail_clean = _extract_text_toolcalls(tail)
+    yield {"type": "delta", "text": tail_clean}
     yield {"type": "done", "trace": trace, "rounds": MAX_ROUNDS}
 
 
