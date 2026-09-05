@@ -70,4 +70,7 @@ def invoke_json_schema(
     except Exception as exc:  # noqa: BLE001  连自由文本都失败：给安全占位，不炸流水线
         raise_if_config_error(exc, agent_name)
         logger.error("%s: 自由文本兜底也失败(%s)", agent_name, exc)
-        return f"（复盘裁判生成失败：{type(exc).__name__}，请稍后重试）", None
+        # 占位里要带上**真实报错**（#9：用户只看到「AI 环节没跑通」、根因只在服务端日志里）。
+        # 截到 120 字：占位必须短于 review_store 的可用阈值，否则失败产物会被当成可用复盘落盘。
+        detail = f"{type(exc).__name__}: {str(exc).strip()}"[:120]
+        return f"（{agent_name}生成失败：{detail}，请稍后重试）", None

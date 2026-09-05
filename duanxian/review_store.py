@@ -83,8 +83,11 @@ def save(payload: dict, date: str) -> SaveResult:
     rejected = safe_join(REJECT_DIR, f"{date}.rejected-{stamp}.json")
     _atomic_write(rejected, payload)
 
+    # 把 AI 段留下的占位（含真实报错）带进 reason —— 只报「没跑通」用户无从下手（#9）
+    left = " ".join((payload.get("focus_md") or "").split())[:160]
     reason = (
         "本次复盘的「明天关注点」是空的（AI 环节没跑通）"
+        + (f"：{left}" if left else "")
         + (f"，已保留原有的 {'、'.join(kept)} 不被覆盖" if kept else "")
         + f"。产物另存 _rejected/{os.path.basename(rejected)} 可查"
     )

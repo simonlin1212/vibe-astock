@@ -2760,6 +2760,37 @@ class TestFailedReviewNeverClobbersGood:
         review_store.save(self._payload(False), "2026-01-02")
         assert review_store.dates() == ["2026-01-02"], review_store.dates()
 
+    def test_refusal_reason_carries_what_the_ai_step_left(self, tmp_path, monkeypatch):
+        """#9：被拒时 reason 必须带上占位里的真实报错，不能只说「AI 环节没跑通」。"""
+        from duanxian import review_store
+
+        monkeypatch.setattr(review_store, "DIR", str(tmp_path))
+        monkeypatch.setattr(review_store, "REJECT_DIR", str(tmp_path / "_rejected"))
+        bad = {"focus": None,
+               "focus_md": "（复盘裁判生成失败：RuntimeError: codex 退出码 1：Please run codex login，请稍后重试）"}
+        res = review_store.save(bad, "2026-01-06")
+        assert not res.written
+        assert "codex 退出码 1" in res.reason and "codex login" in res.reason, res.reason
+        assert "_rejected/" in res.reason
+
+    def test_fallback_placeholder_keeps_error_but_stays_unusable(self, monkeypatch):
+        """structured 的最后兜底占位要带真实报错，但**永远**短于可用阈值 —— 失败产物不能变成可用复盘。"""
+        from pydantic import BaseModel
+
+        from duanxian import review_store, structured
+
+        class _Llm:
+            def invoke(self, prompt):
+                raise RuntimeError("codex 退出码 1：" + "stderr 很长 " * 80)
+
+        class _Schema(BaseModel):
+            stance: str
+
+        md, obj = structured.invoke_json_schema(_Llm(), "p", _Schema, lambda o: "", "复盘裁判", "{}")
+        assert obj is None
+        assert "codex 退出码 1" in md
+        assert not review_store.usable({"focus": None, "focus_md": md}), "占位太长会被当成可用复盘"
+
     def test_server_surfaces_the_refusal(self):
         """写盘被拒必须变成用户看得见的 error，不能"任务成功但内容空"。"""
         import inspect
