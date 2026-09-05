@@ -12,7 +12,7 @@
   <img src="https://img.shields.io/badge/python-3.12-3776AB.svg?logo=python&logoColor=white" alt="Python">
   <img src="https://img.shields.io/badge/react-19-61DAFB.svg?logo=react&logoColor=white" alt="React">
   <img src="https://img.shields.io/badge/tests-533%20passing-brightgreen.svg" alt="Tests">
-  <img src="https://img.shields.io/badge/version-v0.2.0-orange.svg" alt="Version">
+  <img src="https://img.shields.io/badge/version-v0.2.1-orange.svg" alt="Version">
 </p>
 
 <p align="center">
@@ -339,7 +339,13 @@ cd frontend && npm install && npm run build
 MIMO_API_KEY=...
 MIMO_BASE_URL=https://token-plan-cn.xiaomimimo.com/v1
 MIMO_MODEL=mimo-v2.5-pro
+# 可选：quick 档（分析师等高频节点）用哪个模型，不填就是 mimo-v2.5
+# MIMO_QUICK_MODEL=mimo-v2.5
 ```
+
+不是 MiMo 也行：任何 OpenAI 兼容端点都能接，比如 DeepSeek 就把 `MIMO_BASE_URL` 指到
+`https://api.deepseek.com/v1`，`MIMO_MODEL=deepseek-reasoner`、`MIMO_QUICK_MODEL=deepseek-chat`
+（两档都要填成那家的模型名，否则 quick 档会按默认的 `mimo-v2.5` 去请求、直接 404）。
 
 **② 只有 Claude / Codex 订阅、没有 API key**：走本机已登录的 CLI，免 key。
 
@@ -424,6 +430,7 @@ set VIBE_LLM_CLI=claude
 |---|---|---|
 | `VIBE_PORT` | `8910` | 后端端口 |
 | `VIBE_LLM_CLI` | 未设 | 用本机 CLI 当 LLM（`claude` / `codex` …），设了就不需要 API key |
+| `MIMO_QUICK_MODEL` | `mimo-v2.5` | API 模式下 quick 档用的模型名；接 DeepSeek 等别家端点时必填（也可写在 `mimo.env`） |
 | `VIBE_ALLOW_UNSAFE_CLI` | 未设 | 放开 `claude` 以外的 CLI，逗号分隔（见上面那条提醒） |
 | `VIBE_ASTOCK_PROMPTS` | `~/.vibe-astock/prompts_local.py` | 换一套分析口径（见「自定义分析口径」） |
 | `VIBE_ALLOW_HOSTS` | 未设 | 挂到域名下访问时把域名加进来，否则写操作 403 |

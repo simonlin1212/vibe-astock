@@ -12,7 +12,7 @@
   <img src="https://img.shields.io/badge/python-3.12-3776AB.svg?logo=python&logoColor=white" alt="Python">
   <img src="https://img.shields.io/badge/react-19-61DAFB.svg?logo=react&logoColor=white" alt="React">
   <img src="https://img.shields.io/badge/tests-533%20passing-brightgreen.svg" alt="Tests">
-  <img src="https://img.shields.io/badge/version-v0.2.0-orange.svg" alt="Version">
+  <img src="https://img.shields.io/badge/version-v0.2.1-orange.svg" alt="Version">
 </p>
 
 <p align="center">
@@ -418,7 +418,14 @@ Configure the LLM — **two backends, use whichever you have**:
 MIMO_API_KEY=...
 MIMO_BASE_URL=https://token-plan-cn.xiaomimimo.com/v1
 MIMO_MODEL=mimo-v2.5-pro
+# Optional: model for the quick tier (analysts and other high-frequency nodes); defaults to mimo-v2.5
+# MIMO_QUICK_MODEL=mimo-v2.5
 ```
+
+It does not have to be MiMo: any OpenAI-compatible endpoint works. For DeepSeek, point `MIMO_BASE_URL`
+at `https://api.deepseek.com/v1` and set `MIMO_MODEL=deepseek-reasoner`, `MIMO_QUICK_MODEL=deepseek-chat`
+(fill in both tiers with that vendor's model names, otherwise the quick tier still asks for the default
+`mimo-v2.5` and gets a 404).
 
 **② You only have a Claude / Codex subscription and no API key**: use the CLI you are already
 logged into on this machine. No key needed.
@@ -511,6 +518,7 @@ market-data tabs use `~/.vibe-research/`. The journal itself is a single local f
 |---|---|---|
 | `VIBE_PORT` | `8910` | Backend port |
 | `VIBE_LLM_CLI` | unset | Use a local CLI as the LLM (`claude` / `codex` …); set this and you need no API key |
+| `MIMO_QUICK_MODEL` | `mimo-v2.5` | Model name for the quick tier in API mode; required when pointing at DeepSeek or another vendor (can also live in `mimo.env`) |
 | `VIBE_ALLOW_UNSAFE_CLI` | unset | Allow CLIs other than `claude`, comma-separated (see the note above) |
 | `VIBE_ASTOCK_PROMPTS` | `~/.vibe-astock/prompts_local.py` | Swap in another analysis style (see "Custom analysis style") |
 | `VIBE_ALLOW_HOSTS` | unset | Add your domain here when serving under one, otherwise write requests get a 403 |

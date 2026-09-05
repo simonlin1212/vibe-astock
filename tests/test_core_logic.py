@@ -1619,6 +1619,23 @@ class TestCredsNotInEnviron:
         assert C._CREDS["MIMO_API_KEY"] == "user-set-key"
         assert C._CREDS["MIMO_BASE_URL"] == "https://example.test/v1"
 
+    def test_quick_model_override_respected(self, monkeypatch):
+        """#5：接 DeepSeek 等别家端点时，quick 档不能再写死 mimo-v2.5 —— MIMO_QUICK_MODEL 要生效。"""
+        import duanxian.config as C
+
+        monkeypatch.delenv("VIBE_LLM_CLI", raising=False)
+        monkeypatch.setenv("MIMO_API_KEY", "user-set-key")
+        monkeypatch.setenv("MIMO_BASE_URL", "https://api.deepseek.com/v1")
+        monkeypatch.setenv("MIMO_MODEL", "deepseek-reasoner")
+        monkeypatch.setenv("MIMO_QUICK_MODEL", "deepseek-chat")
+        monkeypatch.setattr(C, "_CREDS", None)
+        assert C.make_llm(deep=False).model_name == "deepseek-chat"
+        assert C.make_llm(deep=True).model_name == "deepseek-reasoner"
+        # 没设覆盖时沿用旧默认，行为不变
+        monkeypatch.delenv("MIMO_QUICK_MODEL")
+        monkeypatch.setattr(C, "_CREDS", None)
+        assert C.make_llm(deep=False).model_name == C.QUICK_MODEL
+
 
 def _live_cli_runtime():
     """`/api/chat` **实际**用的那个 cli_runtime 模块对象"""

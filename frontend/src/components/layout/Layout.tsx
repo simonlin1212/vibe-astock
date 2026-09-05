@@ -16,7 +16,7 @@ function XLogo({ className }: { className?: string }) {
 }
 import { useDarkMode } from "@/hooks/useDarkMode";
 
-const APP_VERSION = "v0.2.0";
+const APP_VERSION = "v0.2.1";
 const REPO_URL = "https://github.com/simonlin1212/Vibe-Astock";
 // 作者联系方式只留 X。
 const X_URL = "https://x.com/linsizhen";
