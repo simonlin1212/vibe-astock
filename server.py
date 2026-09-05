@@ -312,6 +312,7 @@ def _job_stuck(job: dict, limit: int) -> bool:
 
 
 def _atomic_write(path: str, payload: dict) -> None:
+    os.makedirs(os.path.dirname(path), exist_ok=True)  # 缓存目录首次写时可能尚不存在
     tmp = f"{path}.{uuid.uuid4().hex}.tmp"
     with open(tmp, "w", encoding="utf-8") as fh:
         json.dump(payload, fh, ensure_ascii=False, indent=2)
