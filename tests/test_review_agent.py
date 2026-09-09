@@ -274,7 +274,7 @@ def test_crashed_backend_releases_lock_and_recovers_without_rebilling(tmp_path):
     from review_agent.store import Store
     save_review(tmp_path, "2026-09-01")
     root = tmp_path / "state"
-    program = '''import sys,time
+    program = '''import os,sys
 from pathlib import Path
 from review_agent.api import Manager
 from review_agent.runtime import Runtime
@@ -285,16 +285,21 @@ store = Store(root)
 manager = Manager(store, reviews, Runtime(root))
 turn, _ = store.start('2026-09-01', '问题', 'a'*32, {}, lambda: build_bundle(reviews,'2026-09-01'))
 print(turn['id'],flush=True)
-time.sleep(30)
+sys.stdin.readline()
+os._exit(9)
 '''
-    proc = subprocess.Popen([sys.executable, "-c", program, str(root), str(tmp_path)], stdout=subprocess.PIPE, text=True)
+    proc = subprocess.Popen([sys.executable, "-c", program, str(root), str(tmp_path)],
+                            stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
     try:
         turn_id = proc.stdout.readline().strip()
         assert len(turn_id) == 32
         store = Store(root)
         with pytest.raises(EvidenceError, match="另一个"):
             Manager(store, tmp_path, Runtime(root))
-        proc.kill(); proc.wait(timeout=3)
+        # Crash the actual backend without shutdown/finalizers. On Windows a
+        # venv Popen PID may name its redirector, so kill() can leave the holder alive.
+        proc.communicate("crash\n", timeout=3)
+        assert proc.returncode == 9
         recovered = Manager(store, tmp_path, Runtime(root))
         try:
             assert store.turn(turn_id)["status"] == "failed"
@@ -304,8 +309,9 @@ time.sleep(30)
             recovered.shutdown()
     finally:
         if proc.poll() is None:
-            proc.kill(); proc.wait(timeout=3)
-        proc.stdout.close()
+            proc.communicate("crash\n", timeout=3)
+        for stream in (proc.stdin, proc.stdout):
+            stream.close()
 
 
 def test_format_correction_is_bounded_and_rereads_evidence(tmp_path, monkeypatch):
