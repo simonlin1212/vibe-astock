@@ -139,7 +139,7 @@ Windows 也在本机浏览器中使用；需要安装 Python（含 `py` 启动�
 
 源码更新前停止服务并备份下节列出的数据；保留本地修改，更新后重新运行 `sh scripts/setup` 与 `sh scripts/doctor`。日志位于 `.local/startup.log`，分享日志前检查个人信息。
 
-本地后台提供 macOS、Linux 和 Windows 启动路径，AI 接入不再按 Windows 平台拒绝。当前已完成的本机回归环境为 macOS；Windows 原生自动测试已纳入工作流，尚待运行验收，Linux 也未完成整套真机验收。各供应商仍须用自己的账户或密钥完成连接测试。
+本地后台提供 macOS、Linux 和 Windows 启动路径，AI 接入不再按 Windows 平台拒绝。已完成 macOS 本机回归，以及 Windows Server 2025 原生环境的 33 项自动测试和捆绑引擎启动验证，覆盖进程清理、目录锁及合成接入流程。这不代表 Windows 10/11 用户实体电脑或 Linux 整套真机验收。各供应商仍须用自己的账户或密钥完成连接测试。
 
 ## 接入 AI
 

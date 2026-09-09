@@ -139,7 +139,7 @@ Open Connect AI to sign in or enter your own API configuration, test it, and sav
 
 Before updating source code, stop the service and back up the data listed below. Preserve local modifications; after updating, rerun `sh scripts/setup` and `sh scripts/doctor`. Startup logs are in `.local/startup.log`; check for personal information before sharing logs.
 
-The local backend has startup paths for macOS, Linux, and Windows; AI access no longer rejects Windows by platform. Local regression tests have been run on macOS. Native Windows automated tests are included in the workflow but still await execution and acceptance; Linux also lacks full physical-machine acceptance. Each provider still requires a connection test using your own account or key.
+The local backend has startup paths for macOS, Linux, and Windows; AI access no longer rejects Windows by platform. Local regression tests have been run on macOS. On native Windows Server 2025, 33 automated tests and a bundled-engine startup check have passed, covering process cleanup, directory locking, and synthetic access flows. This does not constitute physical-machine acceptance on Windows 10/11 or full Linux acceptance. Each provider still requires a connection test using your own account or key.
 
 ## Connect AI
 
