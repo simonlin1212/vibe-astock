@@ -37,9 +37,10 @@ def check_report_text(text: str) -> None:
 
 
 class FrozenInputs:
-    def __init__(self, date: str, directory: Path, check):
+    def __init__(self, date: str, directory: Path, check, progress=lambda message: None):
         self.date, self.directory, self.check = date, directory, check
         self.values: dict = {}
+        self.progress = progress
 
     def __getattr__(self, name):
         if not name.startswith("get_"):
@@ -49,8 +50,14 @@ class FrozenInputs:
             if date != self.date:
                 raise EvidenceError("取数日期超出本次复盘范围")
             if name not in self.values:
-                from duanxian import data
-                value = getattr(data, name)(date)
+                from .public_worker import fetch_public
+                from .grounding import SOURCES
+                self.progress("正在取数：" + SOURCES.get(name, name))
+                value = fetch_public(name, [date], self.directory, self.check, timeout=90)
+                if name in {"get_emotion_metrics", "get_market_facts"}:
+                    if not isinstance(value, list) or len(value) != 2 or not isinstance(value[0], str) or not isinstance(value[1], dict):
+                        raise EvidenceError("复盘取数返回格式错误")
+                    value = tuple(value)
                 self.check()
                 self.values[name] = value
                 payload = {"target_date": date, "input": name, "value": value, "fetched_at": time.time()}
@@ -258,7 +265,7 @@ class Daily:
         try:
             directory = self.directory / self.current["job_id"]
             directory.mkdir(mode=0o700)
-            inputs = FrozenInputs(date, directory, check)
+            inputs = FrozenInputs(date, directory, check, lambda stage: self._update(stage=stage))
             pre = preflight.check(date, data_source=inputs)
             check()
             if not pre["ok"]:

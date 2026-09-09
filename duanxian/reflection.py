@@ -12,6 +12,7 @@
 
 from __future__ import annotations
 
+from duanxian.paths import data_path
 import datetime
 import re
 import json
@@ -25,8 +26,8 @@ logger = logging.getLogger(__name__)
 from . import trade_calendar
 from .util import china_today, is_a_share_closed, safe_join, validate_trade_date
 
-_REVIEW_DIR = os.path.expanduser("~/.duanxian-agents/reviews")
-_REFLECT_DIR = os.path.expanduser("~/.duanxian-agents/reflections")
+_REVIEW_DIR = data_path("reviews")
+_REFLECT_DIR = data_path("reflections")
 
 
 _NAME_CODE: dict = {}

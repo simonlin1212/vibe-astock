@@ -40,6 +40,7 @@
 """
 
 from __future__ import annotations
+from duanxian.paths import data_path
 from .cache_policy import fresh as cache_fresh, write as write_cache
 
 import json
@@ -49,7 +50,7 @@ from typing import Optional
 from . import trade_calendar
 from .util import atomic_write_json
 
-_CACHE_DIR = os.path.expanduser("~/.duanxian-agents/cache/zt_reasons")
+_CACHE_DIR = data_path("cache/zt_reasons")
 _SCHEMA = 1
 
 _GENERIC = {

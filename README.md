@@ -139,7 +139,7 @@ Windows 也在本机浏览器中使用；需要安装 Python（含 `py` 启动�
 
 源码更新前停止服务并备份下节列出的数据；保留本地修改，更新后重新运行 `sh scripts/setup` 与 `sh scripts/doctor`。日志位于 `.local/startup.log`，分享日志前检查个人信息。
 
-本地后台提供 macOS、Linux 和 Windows 启动路径，AI 接入不再按 Windows 平台拒绝。已完成 macOS 本机回归，以及 Windows Server 2025 原生环境的 33 项自动测试和捆绑引擎启动验证，覆盖进程清理、目录锁及合成接入流程。这不代表 Windows 10/11 用户实体电脑或 Linux 整套真机验收。各供应商仍须用自己的账户或密钥完成连接测试。
+本地后台提供 macOS、Linux 和 Windows 启动路径，AI 接入不再按 Windows 平台拒绝。已完成 macOS 本机回归，以及 Windows Server 2025 原生环境的 34 项自动测试和捆绑引擎启动验证，覆盖进程清理、目录锁及合成接入流程。这不代表 Windows 10/11 用户实体电脑或 Linux 整套真机验收。各供应商仍须用自己的账户或密钥完成连接测试。
 
 ## 接入 AI
 
@@ -170,13 +170,28 @@ Agent 默认关闭：普通聊天不启用工具或联网。开启后，适用�
 | 数据 | 默认位置与注意事项 |
 |---|---|
 | Agent 会话、任务、证据账本与产品登录 | `~/.vibe-astock-agent/`；可用 `ASTOCK_AGENT_HOME` 改变该根目录 |
-| 复盘、版本、交易日志与原始归档 | `~/.duanxian-agents/`，包括 `reviews/`、`journal/`、`archive/` 等 |
+| 复盘、版本、交易日志与原始归档 | `~/.duanxian-agents/`，包括 `reviews/`、`journal/`、`archive/` 等；可用 `ASTOCK_DATA_HOME` 指定绝对路径 |
 | 市场资料与盯盘缓存 | `~/.vibe-astock-agent/market-data/`；可通过 `VR_DATA_DIR` 指定 |
 | 研报资料 | 默认在上述市场资料目录的 `myreports/`；`VR_REPORTS_DIR` 可单独指定 |
 | 自选、研究记录、界面状态与 API 配置 | 当前浏览器站点的本地存储；更换浏览器、端口或清理站点数据会影响读取 |
 | 开发日志与运行诊断 | 仓库 `.local/`，默认不进入版本控制 |
 
 这些位置不是由一个开关统一迁移的：更改 `ASTOCK_AGENT_HOME` 不会自动搬走交易日志、市场资料或浏览器数据。备份应覆盖实际使用的目录及页面可导出的记录，并妥善保护其中的登录与密钥。不要将私人记录、API key 或登录文件提交到仓库；不要复制开发助手的登录文件来替代产品授权。
+
+### 将业务数据放到其他磁盘
+
+Windows PowerShell 中，在启动前设置（示例路径可自行调整）：
+
+```powershell
+$env:ASTOCK_DATA_HOME = 'D:\VibeAStock\reviews-and-journal'
+$env:ASTOCK_AGENT_HOME = 'D:\VibeAStock\agent'
+$env:VR_DATA_DIR = 'D:\VibeAStock\market-data'
+python scripts/manage.py start
+```
+
+这些变量只影响从该终端启动的进程，需在每次启动前设置，或加入自己的启动脚本。macOS/Linux 可用 `export ASTOCK_DATA_HOME="/完整路径/业务数据"` 等对应变量。默认目录保持兼容；配置目录不会自动搬迁旧文件。迁移已有数据时，先停止服务、备份并将原目录内容复制到对应新目录，再设置变量启动核对；确认前保留原件。单独配置的 `VR_REPORTS_DIR` 也需同步调整。浏览器记录和仓库 `.local/` 运行日志不受这些变量影响。
+
+盘面数据中的限售解禁日历可查看未来或最近十个日历日，自选匹配在浏览器内完成。解禁数量使用本次解禁股数，占比使用总股本口径；接口失败会明确提示，不等同于没有解禁。数据源最多返回 500 条时会标明部分覆盖。
 
 ## 架构与开发
 

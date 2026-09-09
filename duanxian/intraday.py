@@ -26,6 +26,7 @@
 
 from __future__ import annotations
 
+from duanxian.paths import data_path
 import json
 import os
 import re
@@ -35,7 +36,7 @@ from typing import Optional
 from . import trade_calendar
 from .util import atomic_write_json, china_now, china_today
 
-_DIR = os.path.expanduser("~/.duanxian-agents/intraday")
+_DIR = data_path("intraday")
 
 # 一天要留的快照时点（上海时间 HH:MM）。收盘后那个是当天定稿，前面几个记录路径。
 SNAPSHOT_SLOTS = ["09:25", "09:35", "10:00", "11:30", "14:00", "15:00"]

@@ -17,6 +17,7 @@
 
 from __future__ import annotations
 
+from duanxian.paths import data_path
 from typing import Callable, Optional
 
 # 方向的含义：预期这个读数明天往哪走
@@ -342,7 +343,7 @@ import os
 
 from .util import atomic_write_json
 
-_USER_DIR = os.path.expanduser("~/.duanxian-agents/verification")
+_USER_DIR = data_path("verification")
 _USER_SCHEMA = 1
 
 

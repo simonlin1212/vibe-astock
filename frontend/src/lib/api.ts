@@ -254,7 +254,8 @@ export interface DragonTiger {
   seats: { buy: DtSeat[]; sell: DtSeat[] };
   institution: { buy_amt: number; sell_amt: number; net_amt: number };
 }
-export interface LockupRow { date: string; type: string; shares: number; able_shares: number; ratio: number }
+export interface LockupRow { date: string; type: string; shares: number | null; able_shares: number | null; ratio: number | null }
+export interface UnlockCalendar { start: string; end: string; fetched_at: string; truncated: boolean; events: (LockupRow & { code: string; name: string })[] }
 export interface Lockup { history: LockupRow[]; upcoming: LockupRow[] }
 export interface Board { name: string; code: string; change_pct: number | string; lead_stock: string }
 export interface Blocks { total: number; boards: Board[]; concept_tags: string[] }
@@ -393,6 +394,7 @@ export const api = {
   dividend: (code: string) => get<DividendRow[]>(`/dividend?code=${code}`),
   fundFlow: (code: string) => get<FundFlowRow[]>(`/fund-flow?code=${code}`),
   dragonTiger: (code: string) => get<DragonTiger>(`/dragon-tiger?code=${code}`),
+  unlockCalendar: (window: "upcoming" | "recent") => get<UnlockCalendar>(`/lockup-calendar?window=${window}`),
   lockup: (code: string) => get<Lockup>(`/lockup?code=${code}`),
   blocks: (code: string) => get<Blocks>(`/blocks?code=${code}`),
   hotConcepts: (code: string) => get<HotConcept[]>(`/hot-concepts?code=${code}`),

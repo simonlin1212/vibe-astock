@@ -5,6 +5,7 @@ Requires ASTOCK_EVAL_API_KEY for API mode. This command consumes model usage.
 """
 from __future__ import annotations
 
+from duanxian.paths import data_path
 import argparse
 import json
 import os
@@ -39,7 +40,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--provider", choices=["mimo", "openai", "codex-private"], required=True)
     parser.add_argument("--model")
-    parser.add_argument("--reviews", type=Path, default=Path.home() / ".duanxian-agents/reviews")
+    parser.add_argument("--reviews", type=Path, default=Path(data_path("reviews")))
     parser.add_argument("--cases", type=Path, default=Path(__file__).resolve().parents[1] / "evals/review_agent.json")
     parser.add_argument("--state", type=Path, default=Path.home() / ".vibe-astock-agent")
     args = parser.parse_args()

@@ -259,8 +259,9 @@ def test_real_worker_cross_dates_failure_restart_and_preserved_history(tmp_path,
     from review_agent.store import Store
     monkeypatch.setattr(review_store, "DIR", str(tmp_path / "reviews"))
     monkeypatch.setattr(trade_calendar, "is_settled", lambda date: True)
-    for name in inputs():
-        monkeypatch.setattr(data, name, lambda date, name=name: inputs(date=date)[name])
+    # Substitute the process transport boundary, preserving real freezing/validation.
+    monkeypatch.setattr('review_agent.public_worker.fetch_public',
+        lambda name, args, *a, **kw: json.loads(json.dumps(inputs(date=args[0])[name])))
     engine = FixtureEngine()
     manager = Manager(Store(tmp_path / "state"), tmp_path / "reviews", engine)
     source = {"provider": "codex-private", "model": "test"}
@@ -449,8 +450,9 @@ def test_post_commit_cancel_or_deadline_keeps_paid_report_complete(tmp_path,monk
     from review_agent import post_review
     monkeypatch.setattr(review_store,'DIR',str(tmp_path/'reviews'))
     monkeypatch.setattr(trade_calendar,'is_settled',lambda date:True)
-    for name in inputs():
-        monkeypatch.setattr(data,name,lambda date,name=name:inputs(date=date)[name])
+    # Substitute the process transport boundary, preserving real freezing/validation.
+    monkeypatch.setattr('review_agent.public_worker.fetch_public',
+        lambda name, args, *a, **kw: json.loads(json.dumps(inputs(date=args[0])[name])))
     manager=Manager(Store(tmp_path/'state'),tmp_path/'reviews',FixtureEngine())
     source={'provider':'codex-private','model':'test'}
     def stopped(*a,**kw):

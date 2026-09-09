@@ -33,6 +33,7 @@
 
 from __future__ import annotations
 
+from duanxian.paths import data_path
 import json
 import os
 from statistics import median
@@ -40,7 +41,7 @@ from typing import Optional
 
 from .util import atomic_write_json
 
-_DIR = os.path.expanduser("~/.duanxian-agents/drift")
+_DIR = data_path("drift")
 _CAL_PATH = os.path.join(_DIR, "regime_calendar.json")
 _CAL_SCHEMA = 1
 

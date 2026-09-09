@@ -35,6 +35,7 @@
 
 from __future__ import annotations
 
+from duanxian.paths import data_path
 import json
 import os
 from statistics import median
@@ -42,7 +43,7 @@ from typing import Optional
 
 from .util import atomic_write_json
 
-_CACHE_DIR = os.path.expanduser("~/.duanxian-agents/cache/bars")
+_CACHE_DIR = data_path("cache/bars")
 
 # 少于这么多笔就不给汇总性描述（几笔的捕获率中位数没有意义）
 _MIN_TRADES = 6

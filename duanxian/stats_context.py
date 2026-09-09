@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from duanxian.paths import data_path
 import logging
 from statistics import median
 from typing import Callable, Optional
@@ -99,7 +100,7 @@ def _cached_days_per_dir() -> tuple[frozenset[str], ...]:
 
     out = []
     for name in _CACHE_DIRS:
-        d = os.path.expanduser(f"~/.duanxian-agents/cache/{name}")
+        d = data_path("cache", name)
         try:
             out.append(frozenset(f[:-5] for f in os.listdir(d) if f.endswith(".json")))
         except FileNotFoundError:
@@ -132,7 +133,7 @@ def _file_fingerprint(dir_name: str, day: str) -> tuple:
     import os
     import time
 
-    path = os.path.expanduser(f"~/.duanxian-agents/cache/{dir_name}/{day}.json")
+    path = data_path("cache", dir_name, f"{day}.json")
     try:
         st = os.stat(path)
         return (st.st_mtime_ns, st.st_size)

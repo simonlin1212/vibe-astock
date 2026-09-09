@@ -44,13 +44,14 @@
 
 from __future__ import annotations
 
+from duanxian.paths import data_path
 import json
 import os
 from typing import Any, Optional
 
 from .util import atomic_write_json, china_now
 
-_DIR = os.path.expanduser("~/.duanxian-agents/archive")
+_DIR = data_path("archive")
 
 # 归档信封版本。⚠️ 只在**信封结构**变化时 +1；`rows` 的内容永远是源的原样，
 # 不受算法版本影响 —— 这正是归档能用来重算的原因。

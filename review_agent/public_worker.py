@@ -15,15 +15,22 @@ from .evidence import EvidenceError, canonical
 QUERY_CALLS = {"query_quote", "query_valuation", "query_reports", "query_news", "query_global_stock"}
 MIGRATED_CALLS = {"run_backtest", "macro_probability"}
 DEEPDIVE_CALLS = {"resolve", "get_profile", "get_theme", "get_lhb", "get_kline"}
+DAILY_CALLS = {"get_sentiment_data", "get_emotion_metrics", "get_market_facts", "get_capital_data",
+               "get_macro_sector_data", "get_theme_reasons", "get_dragon_tiger_data", "get_leader_data"}
+
 
 
 def fetch_public(name, args, directory, check, *, timeout=90):
     from .runtime import REPO, engine_environment, stop_process
-    if name not in DEEPDIVE_CALLS | QUERY_CALLS | MIGRATED_CALLS:
+    if name not in DEEPDIVE_CALLS | QUERY_CALLS | MIGRATED_CALLS | DAILY_CALLS:
         raise EvidenceError("取数接口不在本次允许范围")
     budget = min(float(check()), timeout)
     path = Path(directory) / ("worker-" + uuid.uuid4().hex + ".jsonl")
     env = engine_environment(Path(directory))
+    if os.environ.get("ASTOCK_DATA_HOME"):
+        env["ASTOCK_DATA_HOME"] = os.environ["ASTOCK_DATA_HOME"]
+    if name in DAILY_CALLS and os.environ.get("IWENCAI_API_KEY"):
+        env["IWENCAI_API_KEY"] = os.environ["IWENCAI_API_KEY"]
     env["PYTHONPATH"] = str(REPO)
     env["VIBE_ASTOCK_PROMPTS"] = "builtin"
     proc = None
@@ -92,11 +99,18 @@ def query_public(name, args):
 def main():
     import contextlib
     name, args = sys.argv[1], json.loads(sys.argv[2])
-    if name not in DEEPDIVE_CALLS | QUERY_CALLS | MIGRATED_CALLS or not isinstance(args, list):
+    if name not in DEEPDIVE_CALLS | QUERY_CALLS | MIGRATED_CALLS | DAILY_CALLS or not isinstance(args, list):
         raise ValueError("unsupported request")
     # Data libraries may print progress. Keep the protocol separate.
     with open(os.devnull, "w") as sink, contextlib.redirect_stdout(sink):
-        if name == "run_backtest":
+        if name in DAILY_CALLS:
+            from .evidence import valid_date
+            if len(args) != 1:
+                raise ValueError("daily query requires one date")
+            valid_date(args[0])
+            from duanxian import data
+            result = getattr(data, name)(*args)
+        elif name == "run_backtest":
             from .backtesting import calculate
             result = calculate(*args)
         elif name == "macro_probability":

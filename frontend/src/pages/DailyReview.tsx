@@ -1,3 +1,4 @@
+import { UnlockCalendarPanel } from "@/components/UnlockCalendarPanel";
 import { pageMaterials } from "@/lib/page-materials";
 import { useState, useEffect, useRef, Fragment } from "react";
 import { pctColor } from "@/lib/colors";
@@ -777,6 +778,7 @@ export function DailyReview() {
         ))}
       </div>
 
+      <UnlockCalendarPanel watchCodes={watchCodes} />
       <Disclaimer />
     </div>
   );

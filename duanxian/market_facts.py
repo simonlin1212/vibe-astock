@@ -1,6 +1,7 @@
 """客观市场事实表 —— 复盘要回答的是"今天发生了什么"，不是"明天买什么" """
 
 from __future__ import annotations
+from duanxian.paths import data_path
 from .pool_source import frame as pool_frame
 from .cache_policy import fresh as cache_fresh, write as write_cache
 
@@ -11,7 +12,7 @@ from . import data as _data  # noqa: F401  仅为副作用：注入项目根 sys
 from . import trade_calendar
 from .util import atomic_write_json
 
-_CACHE_DIR = os.path.expanduser("~/.duanxian-agents/cache/market_facts")
+_CACHE_DIR = data_path("cache/market_facts")
 
 _FACTS_SCHEMA = 3
 _FACTS_SCHEMA_READABLE = (2, 3)

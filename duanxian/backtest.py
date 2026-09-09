@@ -49,6 +49,7 @@
 """
 
 from __future__ import annotations
+from duanxian.paths import data_path
 from .cache_policy import fresh as cache_fresh, write as write_cache
 
 import hashlib
@@ -62,10 +63,10 @@ from . import emotion_metrics as em
 from . import trade_calendar
 from .util import atomic_write_json
 
-_CACHE_DIR = os.path.expanduser("~/.duanxian-agents/cache/prev_pool")
+_CACHE_DIR = data_path("cache/prev_pool")
 # 回测**结果**的缓存目录。放在这里而不是 server.py：缓存该跟着算它的东西走，
 # 这样复盘链路要读先验时不必反向依赖 web 层。
-RESULT_DIR = os.path.expanduser("~/.duanxian-agents/backtest")
+RESULT_DIR = data_path("backtest")
 
 # 早盘封板的时间界（HHMMSS 字符串）。⚠️ 比的是**最后封板时间**（见模块 docstring）：
 # 10:00 前"最终封住"= 早盘封板且此后没再炸开，比单纯"首封早"更强的信号。

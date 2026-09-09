@@ -24,6 +24,7 @@
 
 from __future__ import annotations
 
+from duanxian.paths import data_path
 import json
 import os
 import uuid
@@ -33,7 +34,7 @@ from typing import Any, Optional
 
 from .util import atomic_write_json, china_now
 
-_DIR = os.path.expanduser("~/.duanxian-agents/modes")
+_DIR = data_path("modes")
 _PATH = os.path.join(_DIR, "cards.json")
 _SCHEMA = 1
 

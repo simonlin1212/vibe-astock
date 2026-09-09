@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from duanxian.paths import data_path
 from typing import Optional
 
 import json
@@ -14,7 +15,7 @@ from .util import is_today, safe_join
 
 socket.setdefaulttimeout(45)
 
-_LEADER_DIR = os.path.expanduser("~/.duanxian-agents/leaders")
+_LEADER_DIR = data_path("leaders")
 
 _MACRO_GROUPS = {
     "AI算力": ["算力", "CPO", "光模块", "光通信", "液冷", "PCB", "铜连接", "服务器"],
@@ -373,7 +374,7 @@ def get_leader_data(date: str) -> str:
 
 # ---------- 前日涨停池（复盘的昨日反馈 / 晋级率 / 多日趋势都要用）----------
 
-_PREV_POOL_DIR = os.path.expanduser("~/.duanxian-agents/cache/prev_pool")
+_PREV_POOL_DIR = data_path("cache/prev_pool")
 
 
 def is_limit_up(row: dict) -> "Optional[bool]":

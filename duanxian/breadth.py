@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from duanxian.paths import data_path
 import json
 import logging
 import math
@@ -15,7 +16,7 @@ from .util import atomic_write_json
 
 logger = logging.getLogger(__name__)
 
-_CACHE_DIR = os.path.expanduser("~/.duanxian-agents/cache/breadth")
+_CACHE_DIR = data_path("cache/breadth")
 _SCHEMA = 1
 
 _UA = {"User-Agent": "Mozilla/5.0"}

@@ -31,6 +31,7 @@
 
 from __future__ import annotations
 
+from duanxian.paths import data_path
 import json
 import math
 import os
@@ -38,7 +39,7 @@ from typing import Optional
 
 from .util import atomic_write_json
 
-_DIR = os.path.expanduser("~/.duanxian-agents/risk")
+_DIR = data_path("risk")
 _BASE_PATH = os.path.join(_DIR, "equity_base.json")
 _BASE_SCHEMA = 1
 

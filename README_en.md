@@ -139,7 +139,7 @@ Open Connect AI to sign in or enter your own API configuration, test it, and sav
 
 Before updating source code, stop the service and back up the data listed below. Preserve local modifications; after updating, rerun `sh scripts/setup` and `sh scripts/doctor`. Startup logs are in `.local/startup.log`; check for personal information before sharing logs.
 
-The local backend has startup paths for macOS, Linux, and Windows; AI access no longer rejects Windows by platform. Local regression tests have been run on macOS. On native Windows Server 2025, 33 automated tests and a bundled-engine startup check have passed, covering process cleanup, directory locking, and synthetic access flows. This does not constitute physical-machine acceptance on Windows 10/11 or full Linux acceptance. Each provider still requires a connection test using your own account or key.
+The local backend has startup paths for macOS, Linux, and Windows; AI access no longer rejects Windows by platform. Local regression tests have been run on macOS. On native Windows Server 2025, 34 automated tests and a bundled-engine startup check have passed, covering process cleanup, directory locking, and synthetic access flows. This does not constitute physical-machine acceptance on Windows 10/11 or full Linux acceptance. Each provider still requires a connection test using your own account or key.
 
 ## Connect AI
 
@@ -170,13 +170,28 @@ The local web app still uses network connections to retrieve data. When remote A
 | Data | Default location and considerations |
 |---|---|
 | Agent conversations, tasks, evidence ledger, and product login | `~/.vibe-astock-agent/`; `ASTOCK_AGENT_HOME` changes this root |
-| Reviews, versions, trading journal, and raw archives | `~/.duanxian-agents/`, including `reviews/`, `journal/`, `archive/`, and related directories |
+| Reviews, versions, trading journal, and raw archives | `~/.duanxian-agents/`, including `reviews/`, `journal/`, `archive/`, and related directories; set `ASTOCK_DATA_HOME` to an absolute path to override |
 | Market materials and watch caches | `~/.vibe-astock-agent/market-data/`; configurable through `VR_DATA_DIR` |
 | Research-report materials | The market-data directory's `myreports/` by default; independently configurable through `VR_REPORTS_DIR` |
 | Watchlist, research notes, UI state, and API configuration | Local storage for the current browser origin; changing browser or port, or clearing site data, affects access |
 | Development logs and runtime diagnostics | Repository `.local/`, excluded from version control by default |
 
 These locations are not migrated by one setting: changing `ASTOCK_AGENT_HOME` does not automatically move the journal, market materials, or browser data. Backups should cover the actual directories in use and records exportable from the UI. Protect any login data and keys they contain. Do not commit private records, API keys, or login files, or copy a development assistant's login file as a substitute for product authorization.
+
+### Store business data on another drive
+
+Set these variables in Windows PowerShell before starting the service:
+
+```powershell
+$env:ASTOCK_DATA_HOME = 'D:\VibeAStock\reviews-and-journal'
+$env:ASTOCK_AGENT_HOME = 'D:\VibeAStock\agent'
+$env:VR_DATA_DIR = 'D:\VibeAStock\market-data'
+python scripts/manage.py start
+```
+
+These settings apply only to processes launched from this terminal. Set them before each launch or in your own launcher script. On macOS/Linux, use equivalent exports, such as `export ASTOCK_DATA_HOME="/absolute/path/business-data"`. Existing defaults remain compatible; settings never move existing files automatically. To migrate, stop the service, back up and copy each old directory's contents to its corresponding destination, then start with the new settings and verify. Keep the originals until verified. Update any separately configured `VR_REPORTS_DIR` too. Browser records and repository `.local/` runtime logs are unaffected.
+
+The market-data page includes an unlock calendar for the next or most recent ten calendar days, with watchlist matching performed in the browser. Share counts describe the current unlock batch; percentages use total equity. Source failures are reported rather than treated as no unlocks. Results reaching the 500-record limit are marked as partial coverage.
 
 ## Architecture and development
 

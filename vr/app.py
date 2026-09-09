@@ -591,12 +591,26 @@ def dragon_tiger(code: str = Query(...)):
         raise HTTPException(502, f"龙虎榜异常：{e}") from e
 
 
+@app.get("/api/lockup-calendar")
+def lockup_calendar(window: str = Query("upcoming", pattern="^(upcoming|recent)$")):
+    """Ten-day public unlock calendar; no watchlist is received."""
+    try:
+        from duanxian.util import china_now
+        day = china_now().strftime("%Y-%m-%d")
+        return {"data": _cached("lockup-calendar", day + window, 1800,
+                               lambda: astock.lockup_calendar(window, day))}
+    except Exception as exc:
+        raise HTTPException(502, "解禁日历取数失败，无法判断有无事件，请稍后重试") from exc
+
+
 @app.get("/api/lockup")
 def lockup(code: str = Query(...)):
     """限售解禁日历：历史解禁 + 未来 90 天待解禁（东财）。缓存 30 分钟。"""
     code = _validate(code)
     try:
-        return {"data": _cached("lockup", code, 1800, lambda: astock.lockup_expiry(code))}
+        from duanxian.util import china_now
+        day = china_now().strftime("%Y-%m-%d")
+        return {"data": _cached("lockup", code + day, 1800, lambda: astock.lockup_expiry(code, day))}
     except Exception as e:  # noqa: BLE001
         raise HTTPException(502, f"解禁日历异常：{e}") from e
 

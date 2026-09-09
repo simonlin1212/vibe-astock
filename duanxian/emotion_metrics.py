@@ -1,6 +1,7 @@
 """派生情绪指标 —— 短线复盘真正的命根子"""
 
 from __future__ import annotations
+from duanxian.paths import data_path
 from .cache_policy import fresh as cache_fresh, write as write_cache
 
 import json
@@ -346,7 +347,7 @@ def ladder_gap(date: str) -> dict:
     }
 
 
-_SUMMARY_CACHE_DIR = os.path.expanduser("~/.duanxian-agents/cache/zt_summary")
+_SUMMARY_CACHE_DIR = data_path("cache/zt_summary")
 
 _SUMMARY_SCHEMA = 1
 _SUMMARY_SOURCE = "akshare_zt_pool"

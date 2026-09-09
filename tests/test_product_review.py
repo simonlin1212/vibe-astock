@@ -97,7 +97,8 @@ def test_strict_supplement_failure_propagates():
 
 def test_frozen_inputs_reuse_exact_preflight_values(tmp_path, monkeypatch):
     values = iter(["before", "after"])
-    monkeypatch.setattr(data, "get_sentiment_data", lambda date: next(values))
+    from review_agent import public_worker
+    monkeypatch.setattr(public_worker, "fetch_public", lambda *args, **kwargs: next(values))
     inputs = FrozenInputs(DATE, tmp_path, lambda: 10)
     assert inputs.get_sentiment_data(DATE) == inputs.get_sentiment_data(DATE) == "before"
     with pytest.raises(EvidenceError):

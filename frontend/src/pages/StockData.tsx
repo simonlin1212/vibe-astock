@@ -518,7 +518,7 @@ export function StockData() {
                 <div className="mb-3 rounded-lg border border-warning/30 bg-warning/5 p-3">
                   <p className="mb-1.5 text-xs font-medium text-warning">未来 90 天待解禁（{lockup.upcoming.length}）</p>
                   {lockup.upcoming.slice(0, 4).map((h, i) => (
-                    <div key={i} className="flex items-center gap-3 text-xs"><span className="w-20 shrink-0 font-mono text-muted-foreground">{h.date}</span><span className="flex-1 truncate">{h.type}</span><span className="shrink-0 text-muted-foreground">占比 {pct(h.ratio)}</span></div>
+                    <div key={i} className="flex items-center gap-3 text-xs"><span className="w-20 shrink-0 font-mono text-muted-foreground">{h.date}</span><span className="flex-1 truncate">{h.type}</span><span className="shrink-0 text-muted-foreground">占总股本 {pct(h.ratio)}</span></div>
                   ))}
                 </div>
               ) : (

@@ -564,7 +564,8 @@ def market_turnover_rank(n: int = 20) -> list[dict]:
 
 
 def eastmoney_datacenter(report_name: str, columns: str = "ALL", filter_str: str = "",
-                         page_size: int = 50, sort_columns: str = "", sort_types: str = "-1") -> list[dict]:
+                         page_size: int = 50, sort_columns: str = "", sort_types: str = "-1",
+                         *, strict: bool = False) -> list[dict]:
     """东财数据中心统一查询 —— 龙虎榜/解禁/融资融券/大宗交易/股东户数/分红 共用（已内置限流）。"""
     params = {
         "reportName": report_name, "columns": columns, "filter": filter_str,
@@ -573,11 +574,22 @@ def eastmoney_datacenter(report_name: str, columns: str = "ALL", filter_str: str
     }
     try:
         d = em_get(_DATACENTER_URL, params=params, timeout=15).json()
-    except Exception:
+        if not strict:
+            return (d.get("result") or {}).get("data") or []
+        # Eastmoney explicitly reports an empty query as code 9201.
+        if (isinstance(d, dict) and d.get("code") == 9201 and d.get("success") is False
+                and d.get("message") == "返回数据为空" and d.get("result") is None):
+            return []
+        if not isinstance(d, dict) or d.get("success") is not True:
+            raise ValueError("invalid data-center response")
+        result = d.get("result")
+        if not isinstance(result, dict) or not isinstance(result.get("data"), list):
+            raise ValueError("missing data-center rows")
+        return result["data"]
+    except Exception as exc:
+        if strict:
+            raise RuntimeError("数据中心取数失败，无法判断是否有解禁记录；请稍后重试") from exc
         return []
-    if d.get("result") and d["result"].get("data"):
-        return d["result"]["data"]
-    return []
 
 
 def margin_trading(code: str, page_size: int = 30) -> list[dict]:
@@ -720,31 +732,70 @@ def dragon_tiger_board(code: str, trade_date: str | None = None, look_back: int 
     return {"records": records, "seats": seats, "institution": institution}
 
 
+def _unlock_row(r: dict) -> dict:
+    day = str(r.get("FREE_DATE", ""))[:10]
+    datetime.strptime(day, "%Y-%m-%d")
+    def number(key):
+        value = r.get(key)
+        if value is None:
+            return None
+        value = float(value)
+        if not math.isfinite(value) or value < 0:
+            raise ValueError("解禁数据数值无效")
+        return value
+    ratio = number("TOTAL_RATIO")
+    return {"date": day, "type": r.get("FREE_SHARES_TYPE", ""),
+            "shares": number("CURRENT_FREE_SHARES"), "able_shares": number("ABLE_FREE_SHARES"),
+            "ratio": None if ratio is None else ratio * 100}
+
+
 def lockup_expiry(code: str, trade_date: str | None = None, forward_days: int = 90) -> dict:
-    """限售解禁日历：历史解禁记录 + 未来 N 天待解禁事件。
+    """Dated unlock batches. Shares in 10,000 shares; ratio in percent of total equity."""
+    from duanxian.util import china_now
+    trade_date = trade_date or china_now().strftime("%Y-%m-%d")
+    start = datetime.strptime(trade_date, "%Y-%m-%d")
+    if not re.fullmatch(r"\d{6}", code) or not 0 <= forward_days <= 366:
+        raise ValueError("解禁查询需要六位代码及 0–366 天范围")
+    end = (start + timedelta(days=forward_days)).strftime("%Y-%m-%d")
 
-    字段随东财 2026 改列名同步（a-stock-data §3.6）：旧 LIMITED_STOCK_TYPE/FREE_SHARES_NUM
-    已废、致 type/shares 恒空 → 改 FREE_SHARES_TYPE/FREE_SHARES，并补 able_shares（实际可流通股数）。
-    """
-    trade_date = trade_date or datetime.now().strftime("%Y-%m-%d")
-    history = [{
-        "date": str(r.get("FREE_DATE", ""))[:10], "type": r.get("FREE_SHARES_TYPE", ""),
-        "shares": r.get("FREE_SHARES", 0), "able_shares": r.get("ABLE_FREE_SHARES", 0),
-        "ratio": r.get("FREE_RATIO", 0),
-    } for r in eastmoney_datacenter(
-        "RPT_LIFT_STAGE", filter_str=f'(SECURITY_CODE="{code}")',
-        page_size=15, sort_columns="FREE_DATE", sort_types="-1")]
+    def rows(filter_str, size, order):
+        records = eastmoney_datacenter("RPT_LIFT_STAGE", filter_str=filter_str,
+            page_size=size, sort_columns="FREE_DATE", sort_types=order, strict=True)
+        result = []
+        for r in records:
+            day = str(r.get("FREE_DATE", ""))[:10]
+            datetime.strptime(day, "%Y-%m-%d")
+            if (order == "-1" and day >= trade_date) or (order == "1" and not trade_date <= day <= end):
+                raise ValueError("解禁数据日期与查询范围不符，未使用该批数据")
+            result.append(_unlock_row(r))
+        return result
 
-    end = (datetime.strptime(trade_date, "%Y-%m-%d") + timedelta(days=forward_days)).strftime("%Y-%m-%d")
-    upcoming = [{
-        "date": str(r.get("FREE_DATE", ""))[:10], "type": r.get("FREE_SHARES_TYPE", ""),
-        "shares": r.get("FREE_SHARES", 0), "able_shares": r.get("ABLE_FREE_SHARES", 0),
-        "ratio": r.get("FREE_RATIO", 0),
-    } for r in eastmoney_datacenter(
-        "RPT_LIFT_STAGE",
-        filter_str=f'(SECURITY_CODE="{code}")(FREE_DATE>=\'{trade_date}\')(FREE_DATE<=\'{end}\')',
-        page_size=20, sort_columns="FREE_DATE", sort_types="1")]
+    history = rows(f'(SECURITY_CODE="{code}")(FREE_DATE<\'{trade_date}\')', 15, "-1")
+    upcoming = rows(f'(SECURITY_CODE="{code}")(FREE_DATE>=\'{trade_date}\')(FREE_DATE<=\'{end}\')', 100, "1")
     return {"history": history, "upcoming": upcoming}
+
+
+def lockup_calendar(window: str = "upcoming", trade_date: str | None = None) -> dict:
+    """Ten calendar days, inclusive; watchlist matching stays in the browser."""
+    from duanxian.util import china_now
+    now = china_now()
+    today = datetime.strptime(trade_date or now.strftime("%Y-%m-%d"), "%Y-%m-%d")
+    if window not in {"upcoming", "recent"}:
+        raise ValueError("请选择未来或最近十天")
+    start = (today if window == "upcoming" else today - timedelta(days=9)).strftime("%Y-%m-%d")
+    end = (today + timedelta(days=9) if window == "upcoming" else today).strftime("%Y-%m-%d")
+    records = eastmoney_datacenter("RPT_LIFT_STAGE",
+        filter_str=f"(FREE_DATE>='{start}')(FREE_DATE<='{end}')",
+        page_size=500, sort_columns="FREE_DATE,SECURITY_CODE", sort_types="1,1", strict=True)
+    events = []
+    for row in records:
+        event = _unlock_row(row)
+        code = str(row.get("SECURITY_CODE", ""))
+        if not re.fullmatch(r"\d{6}", code) or not start <= event["date"] <= end:
+            raise ValueError("解禁记录代码或日期与查询范围不符")
+        events.append({**event, "code": code, "name": row.get("SECURITY_NAME_ABBR", "")})
+    return {"start": start, "end": end, "events": events, "truncated": len(events) >= 500,
+            "fetched_at": now.isoformat()}
 
 
 def concept_blocks(code: str) -> dict:

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from duanxian.paths import data_path
 import html
 import json
 import os
@@ -16,7 +17,7 @@ from . import reflection
 from .roles import ROLES
 from .util import china_now, is_degraded_report, safe_join
 
-DIR = os.path.expanduser("~/.duanxian-agents/reviews")
+DIR = data_path("reviews")
 
 REJECT_DIR = os.path.join(DIR, "_rejected")
 

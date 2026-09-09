@@ -16,6 +16,7 @@
 
 from __future__ import annotations
 
+from duanxian.paths import data_path
 import datetime
 import json
 import math
@@ -27,7 +28,7 @@ from typing import Optional
 
 from .util import atomic_write_json, china_now, validate_trade_date
 
-_DIR = os.path.expanduser("~/.duanxian-agents/journal")
+_DIR = data_path("journal")
 _PATH = os.path.join(_DIR, "trades.json")
 
 # 交易记录结构版本。

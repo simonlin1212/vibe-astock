@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from duanxian.paths import data_path
 import html
 import hmac
 import json
@@ -38,9 +39,9 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 # React 构建产物：存在就优先服务它，单端口即可访问全部界面，不必另起 vite dev。
 # 构建：cd frontend && npm run build
 _DIST = os.path.join(_HERE, "frontend", "dist")
-_REVIEW_DIR = os.path.expanduser("~/.duanxian-agents/reviews")
-_DD_DIR = os.path.expanduser("~/.duanxian-agents/deepdive")
-_WK_DIR = os.path.expanduser("~/.duanxian-agents/weekly")
+_REVIEW_DIR = data_path("reviews")
+_DD_DIR = data_path("deepdive")
+_WK_DIR = data_path("weekly")
 os.makedirs(_REVIEW_DIR, exist_ok=True)
 os.makedirs(_WK_DIR, exist_ok=True)
 # 允许全部 API 读写的 Host。默认只认本机；挂到域名下访问时，用

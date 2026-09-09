@@ -31,12 +31,13 @@
 
 from __future__ import annotations
 
+from duanxian.paths import data_path
 import glob
 import json
 import os
 from typing import Optional
 
-_REFL_DIR = os.path.expanduser("~/.duanxian-agents/reflections")
+_REFL_DIR = data_path("reflections")
 
 # 四格的名字。⚠️ 顺序别改，前端按 key 取。
 QUADRANTS = {
