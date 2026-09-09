@@ -18,6 +18,7 @@ import time
 from collections import deque
 from pathlib import Path
 
+from .engine_guard import guard_python
 from .evidence import EvidenceError, ToolSession, canonical, validate_answer
 from .product_policy import PRODUCT_POLICY, has_trade_recommendation
 
@@ -216,7 +217,7 @@ def subscription_models(home: Path, timeout: float = 8) -> dict:
     command = engine_command() + ["app-server", "--stdio", "-c", "mcp_servers={}",
                                   "-c", "features.apps=false", "-c", "features.plugins=false"]
     proc = subprocess.Popen(
-        [sys.executable, str(REPO / "review_agent/engine_guard.py"), str(timeout + 2), str(os.getpid()), *command],
+        [guard_python(), str(REPO / "review_agent/engine_guard.py"), str(timeout + 2), str(os.getpid()), *command],
         cwd=home, env=engine_environment(home), stdin=subprocess.PIPE, stdout=subprocess.PIPE,
         stderr=subprocess.DEVNULL, start_new_session=True, bufsize=0)
 
@@ -496,7 +497,7 @@ class Runtime:
         if len(prompt) > 100000:
             raise EvidenceError("会话上下文过长，请新建会话")
         progress("正在连接 AI")
-        guarded = [sys.executable, str(REPO / "review_agent/engine_guard.py"), str(budget + 5), str(os.getpid()), *command, "-"]
+        guarded = [guard_python(), str(REPO / "review_agent/engine_guard.py"), str(budget + 5), str(os.getpid()), *command, "-"]
         proc = subprocess.Popen(guarded, cwd=run, env=engine_environment(self.home, key),
                                 stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
                                 start_new_session=os.name == "posix", bufsize=0)

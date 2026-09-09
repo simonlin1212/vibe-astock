@@ -9,6 +9,7 @@ import time
 import uuid
 
 from .process_io import GUARD_REAP_EXIT
+from .engine_guard import guard_python
 from .evidence import EvidenceError, canonical
 
 QUERY_CALLS = {"query_quote", "query_valuation", "query_reports", "query_news", "query_global_stock"}
@@ -29,7 +30,7 @@ def fetch_public(name, args, directory, check, *, timeout=90):
     try:
         with path.open("xb") as output:
             os.chmod(path, 0o600)
-            proc = subprocess.Popen([sys.executable, str(REPO / "review_agent/engine_guard.py"),
+            proc = subprocess.Popen([guard_python(), str(REPO / "review_agent/engine_guard.py"),
                 str(budget), str(os.getpid()), "--bridge-reap-group", sys.executable,
                 "-m", "review_agent.public_worker", name, canonical(args)], cwd=REPO,
                 env=env, stdin=subprocess.DEVNULL, stdout=output, stderr=subprocess.DEVNULL,

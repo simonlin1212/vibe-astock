@@ -7,6 +7,16 @@ import sys
 import time
 
 
+def guard_python() -> str:
+    """Run the stdlib-only guard directly, without Windows venv's extra process.
+
+    CPython's Windows venv redirector changes the actual parent PID and makes
+    Popen refer to the redirector, not the process that owns the Job handle.
+    Workload children still use the caller's venv interpreter and dependencies.
+    """
+    return getattr(sys, "_base_executable", sys.executable) if os.name == "nt" else sys.executable
+
+
 def main() -> int:
     timeout = float(sys.argv[1])
     parent = int(sys.argv[2])

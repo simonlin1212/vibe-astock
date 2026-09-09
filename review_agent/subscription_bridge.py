@@ -7,6 +7,7 @@ import sys
 import threading
 import time
 from .process_io import read_chunk, write_input, GUARD_REAP_EXIT
+from .engine_guard import guard_python
 from .evidence import EvidenceError, canonical
 
 
@@ -33,7 +34,7 @@ def call_bridge(runtime, agent: str, request: dict, cancel: threading.Event, pro
     if not node:
         raise EvidenceError('订阅运行桥需要 Node，请完成运行环境安装')
     env = bridge_environment(runtime.home, agent)
-    proc = subprocess.Popen([sys.executable, str(REPO / 'review_agent/engine_guard.py'),
+    proc = subprocess.Popen([guard_python(), str(REPO / 'review_agent/engine_guard.py'),
                              str(timeout + 5), str(os.getpid()), "--bridge-reap-group", node, str(REPO / 'runtime/bridge/main.mjs')],
                             cwd=REPO / 'runtime/bridge', env=env, stdin=subprocess.PIPE,
                             stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,

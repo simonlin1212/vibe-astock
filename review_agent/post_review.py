@@ -3,6 +3,7 @@
 Each result is retained next to the generation evidence. Network/data failures
 are explicit and may be retried without regenerating a paid AI report.
 """
+from .engine_guard import guard_python
 from threading import Lock
 
 _CAPTURE_LOCK = Lock()
@@ -53,7 +54,7 @@ def capture_bounded(date: str, check=None, timeout: float = 90) -> dict:
     try:
         with tempfile.TemporaryDirectory(prefix="astock-capture-") as directory:
             result_path = Path(directory) / "result.json"
-            process = subprocess.Popen([sys.executable, str(REPO / "review_agent/engine_guard.py"),
+            process = subprocess.Popen([guard_python(), str(REPO / "review_agent/engine_guard.py"),
                                        str(timeout), str(os.getpid()), sys.executable, "-m", "review_agent.post_review", date, str(result_path)],
                                        cwd=Path(__file__).resolve().parents[1],
                                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,

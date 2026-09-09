@@ -14,6 +14,7 @@ import uuid
 from pathlib import Path
 from urllib.parse import urlparse
 
+from .engine_guard import guard_python
 from .evidence import EvidenceError, canonical, digest
 from .runtime import REPO, Runtime, engine_command, engine_environment, stop_process
 
@@ -135,7 +136,7 @@ class Access:
             # attempts cannot replace a previously working product login.
             command = engine_command() + ["app-server", "--stdio", "-c", 'cli_auth_credentials_store="file"',
                                            "-c", "mcp_servers={}", "-c", "features.apps=false", "-c", "features.plugins=false"]
-            proc = subprocess.Popen([sys.executable, str(REPO / "review_agent/engine_guard.py"), "605", str(os.getpid()), *command],
+            proc = subprocess.Popen([guard_python(), str(REPO / "review_agent/engine_guard.py"), "605", str(os.getpid()), *command],
                                     cwd=staging, env=engine_environment(staging), stdin=subprocess.PIPE,
                                     stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, start_new_session=True, bufsize=0)
             messages = queue.Queue(maxsize=32)

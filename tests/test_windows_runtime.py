@@ -10,6 +10,7 @@ import time
 import pytest
 
 from review_agent import runtime
+from review_agent.engine_guard import guard_python
 from review_agent.evidence import EvidenceError
 
 
@@ -31,7 +32,7 @@ def test_windows_venv_path(tmp_path, monkeypatch):
 
 
 def spawn_guard(code, timeout=3, bridge=False):
-    return subprocess.Popen([sys.executable, str(runtime.REPO / 'review_agent/engine_guard.py'),
+    return subprocess.Popen([guard_python(), str(runtime.REPO / 'review_agent/engine_guard.py'),
         str(timeout), str(os.getpid()), *(['--bridge-reap-group'] if bridge else []),
         sys.executable, '-u', '-c', code], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
         stderr=subprocess.PIPE, start_new_session=os.name == 'posix', bufsize=0)
@@ -190,8 +191,8 @@ def test_windows_guard_survives_parent_only_until_cleanup(tmp_path):
             "p=subprocess.Popen([sys.executable,'-c','import time;time.sleep(60)']);"
             f"Path({str(pidfile)!r}).write_text(str(p.pid));time.sleep(60)")
     guard = str(runtime.REPO/'review_agent/engine_guard.py')
-    launcher = f"import subprocess,sys,os,time;subprocess.Popen([sys.executable,{guard!r},'30',str(os.getpid()),sys.executable,'-c',{code!r}]);time.sleep(60)"
-    parent = subprocess.Popen([sys.executable,'-c',launcher], stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+    launcher = f"import subprocess,sys,os,time;subprocess.Popen([{guard_python()!r},{guard!r},'30',str(os.getpid()),sys.executable,'-c',{code!r}]);time.sleep(60)"
+    parent = subprocess.Popen([guard_python(),'-c',launcher], stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
     try:
         until=time.monotonic()+5
         while not pidfile.exists() and time.monotonic()<until: time.sleep(.02)
@@ -203,3 +204,13 @@ def test_windows_guard_survives_parent_only_until_cleanup(tmp_path):
         assert not process_alive(pid)
     finally:
         if parent.poll() is None: parent.kill();parent.wait(3)
+
+
+def test_windows_guard_bypasses_venv_redirector(monkeypatch):
+    from types import SimpleNamespace
+    from review_agent import engine_guard
+    monkeypatch.setattr(engine_guard, 'os', SimpleNamespace(name='nt'))
+    monkeypatch.setattr(engine_guard, 'sys', SimpleNamespace(executable='venv/python.exe', _base_executable='base/python.exe'))
+    assert engine_guard.guard_python() == 'base/python.exe'
+    monkeypatch.setattr(engine_guard, 'os', SimpleNamespace(name='posix'))
+    assert engine_guard.guard_python() == 'venv/python.exe'

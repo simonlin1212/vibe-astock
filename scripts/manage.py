@@ -228,7 +228,8 @@ def start(root: Path, port: int, browser: bool, timeout=60):
         if PLATFORM == "nt":
             # No time limit for the foreground web service; parent death remains
             # guarded, including forcibly closing the Windows terminal window.
-            command = [str(python_at(root)), str(root / "review_agent/engine_guard.py"),
+            # The stdlib guard must bypass the Windows venv redirector process.
+            command = [getattr(sys, "_base_executable", sys.executable), str(root / "review_agent/engine_guard.py"),
                        "0", str(os.getpid()), *command]
         child = subprocess.Popen(command, cwd=root, env=env, stdout=output, stderr=output,
                                  start_new_session=PLATFORM != "nt")
