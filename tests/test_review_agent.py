@@ -199,8 +199,6 @@ def test_engine_cancel_timeout_and_independent_guard(tmp_path):
     import threading
     import time
     from review_agent.runtime import consume_events, REPO
-    if os.name != "posix":
-        pytest.skip("Agent beta is POSIX only")
     for cancel, timeout, expected in [(True, 3, "取消"), (False, .1, "超时")]:
         proc = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)"], stdout=subprocess.PIPE, start_new_session=True, bufsize=0)
         event = threading.Event()
@@ -274,8 +272,6 @@ def test_crashed_backend_releases_lock_and_recovers_without_rebilling(tmp_path):
     from review_agent.api import Manager
     from review_agent.runtime import Runtime
     from review_agent.store import Store
-    if os.name != "posix":
-        pytest.skip("Agent beta is POSIX only")
     save_review(tmp_path, "2026-09-01")
     root = tmp_path / "state"
     program = '''import sys,time

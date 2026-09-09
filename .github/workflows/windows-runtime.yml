@@ -1,0 +1,50 @@
+name: Windows web backend contracts
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'review_agent/**'
+      - 'runtime/**'
+      - 'scripts/**'
+      - 'tests/**'
+      - 'requirements.txt'
+      - '启动 Vibe AStock.cmd'
+      - '.github/workflows/windows-runtime.yml'
+  push:
+    paths:
+      - 'review_agent/**'
+      - 'runtime/**'
+      - 'scripts/**'
+      - 'tests/**'
+      - 'requirements.txt'
+      - '启动 Vibe AStock.cmd'
+      - '.github/workflows/windows-runtime.yml'
+permissions:
+  contents: read
+jobs:
+  contracts:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    env:
+      PYTHONUTF8: '1'
+      PYTHONIOENCODING: utf-8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: python -m pip install -r requirements.txt httpx
+      - run: npm ci --prefix runtime --no-audit --no-fund
+      - name: Verify bundled Windows engine (no login or model request)
+        run: node runtime/node_modules/@openai/codex/bin/codex.js --version
+      - name: Native lifecycle, API probe and subscription transport (synthetic only)
+        run: >-
+          python -m pytest -q tests/test_windows_runtime.py
+          tests/test_agent_access.py::test_login_protocol_uses_staging_and_installs_only_on_success
+          tests/test_agent_access.py::test_model_catalog_uses_product_home_and_only_public_fields
+          tests/test_agent_access.py::test_shutdown_retains_instance_lock_while_access_worker_alive
+          tests/test_review_agent.py::test_crashed_backend_releases_lock_and_recovers_without_rebilling
+          tests/test_launcher.py -k "not terminal_hangup and not real_http_ready"

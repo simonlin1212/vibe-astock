@@ -45,6 +45,7 @@ def capture_bounded(date: str, check=None, timeout: float = 90) -> dict:
     import tempfile
     import time
     from review_agent.evidence import valid_date
+    from review_agent.runtime import REPO, stop_process
     valid_date(date)
     if not _CAPTURE_LOCK.acquire(blocking=False):
         return {"capture": {"ok": False, "reason": "归档正在处理，请稍后重试"}}
@@ -52,10 +53,12 @@ def capture_bounded(date: str, check=None, timeout: float = 90) -> dict:
     try:
         with tempfile.TemporaryDirectory(prefix="astock-capture-") as directory:
             result_path = Path(directory) / "result.json"
-            process = subprocess.Popen([sys.executable, "-m", "review_agent.post_review", date, str(result_path)],
+            process = subprocess.Popen([sys.executable, str(REPO / "review_agent/engine_guard.py"),
+                                       str(timeout), str(os.getpid()), sys.executable, "-m", "review_agent.post_review", date, str(result_path)],
                                        cwd=Path(__file__).resolve().parents[1],
                                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                                       start_new_session=True)
+                                       env={**os.environ, "PYTHONUTF8": "1", "PYTHONIOENCODING": "utf-8"},
+                                       start_new_session=os.name == "posix")
             deadline = time.monotonic() + timeout
             while process.poll() is None:
                 if check is not None:
@@ -68,16 +71,10 @@ def capture_bounded(date: str, check=None, timeout: float = 90) -> dict:
                     pass
             if process.returncode or not result_path.is_file():
                 return {"capture": {"ok": False, "reason": "归档进程未完成，报告已保存，可重试"}}
-            return json.loads(result_path.read_text())
+            return json.loads(result_path.read_text(encoding="utf-8"))
     finally:
-        if process is not None and process.poll() is None:
-            import signal
-            if os.name != "nt":
-                try: os.killpg(process.pid, signal.SIGKILL)
-                except ProcessLookupError: pass
-            else:
-                process.kill()
-            process.wait(timeout=5)
+        if process is not None:
+            stop_process(process)
         _CAPTURE_LOCK.release()
 
 
@@ -87,4 +84,4 @@ if __name__ == "__main__":
     import sys
     from review_agent.evidence import valid_date
     valid_date(sys.argv[1])
-    Path(sys.argv[2]).write_text(json.dumps(_capture_after_review(sys.argv[1]), ensure_ascii=False))
+    Path(sys.argv[2]).write_text(json.dumps(_capture_after_review(sys.argv[1]), ensure_ascii=False), encoding="utf-8")

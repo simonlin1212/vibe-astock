@@ -105,7 +105,7 @@ for line in sys.stdin:
   print(json.dumps({'id':1,'result':{}}),flush=True)
  elif e['method']=='model/list':
   assert e['params']=={'limit':100}
-  assert os.environ['CODEX_HOME'].endswith('product/codex-home')
+  assert os.environ['CODEX_HOME'].replace(chr(92), '/').endswith('product/codex-home')
   message=json.dumps({'id':2,'result':{'data':[
    {'model':'account-model','isDefault':True,'private':'SECRET_CANARY'},
    {'model':'other-model','isDefault':False}]}})+'\\n'

@@ -9,7 +9,6 @@ import json
 import os
 import queue
 import re
-import select
 import shutil
 import signal
 import subprocess
@@ -21,6 +20,8 @@ from pathlib import Path
 
 from .evidence import EvidenceError, ToolSession, canonical, validate_answer
 from .product_policy import PRODUCT_POLICY, has_trade_recommendation
+
+from .process_io import read_chunk, write_input
 
 REPO = Path(__file__).resolve().parents[1]
 CLI = REPO / "runtime/node_modules/@openai/codex/bin/codex.js"
@@ -151,18 +152,16 @@ def engine_environment(home: Path, key: str = "") -> dict:
     # An allowlist avoids passing the server's other provider credentials to
     # Codex. Keeping the actual OS HOME is intentional; skills are disabled above.
     names = ("PATH", "HOME", "USERPROFILE", "SYSTEMROOT", "WINDIR", "TEMP", "TMP", "TMPDIR",
-             "LANG", "LC_ALL", "HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "NO_PROXY",
+             "APPDATA", "LOCALAPPDATA", "PATHEXT", "COMSPEC", "LANG", "LC_ALL", "HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "NO_PROXY",
              "http_proxy", "https_proxy", "all_proxy", "no_proxy")
     env = {k: os.environ[k] for k in names if k in os.environ}
-    env.update(CODEX_HOME=str(home), NO_COLOR="1")
+    env.update(CODEX_HOME=str(home), NO_COLOR="1", PYTHONUTF8="1", PYTHONIOENCODING="utf-8")
     if key:
         env["ASTOCK_MODEL_KEY"] = key
     return env
 
 
 def engine_command() -> list[str]:
-    if os.name != "posix":
-        raise EvidenceError("复盘 Agent 试用版暂限 macOS/Linux；Windows 请继续使用原有复盘功能")
     node = shutil.which("node")
     if not node or not CLI.is_file():
         raise EvidenceError("复盘 Agent 引擎尚未安装，请先运行安装步骤：npm ci --prefix runtime")
@@ -178,7 +177,7 @@ def config_for(run: Path, source: dict) -> dict:
         "features": {key: False for key in DISABLED},
         "mcp_servers": {"astock": {
             "command": sys.executable, "args": ["-m", "review_agent.mcp_server"], "cwd": str(REPO),
-            "env": {"ASTOCK_AGENT_RUN": str(run)}, "env_vars": [], "required": True,
+            "env": {"ASTOCK_AGENT_RUN": str(run), "PYTHONUTF8": "1", "PYTHONIOENCODING": "utf-8"}, "env_vars": [], "required": True,
             "startup_timeout_sec": 30, "tool_timeout_sec": 30,
             "enabled_tools": list(TOOLS), "default_tools_approval_mode": "approve",
         }},
@@ -230,9 +229,9 @@ def subscription_models(home: Path, timeout: float = 8) -> dict:
         deadline, size, pending = time.monotonic() + timeout, 0, b""
         initialized = False
         while time.monotonic() < deadline:
-            if not select.select([proc.stdout], [], [], min(.2, max(0, deadline - time.monotonic())))[0]:
+            chunk = read_chunk(proc.stdout, min(.2, max(0, deadline - time.monotonic())))
+            if chunk is None:
                 continue
-            chunk = os.read(proc.stdout.fileno(), 65536)
             if not chunk:
                 break
             size += len(chunk)
@@ -411,7 +410,7 @@ class Runtime:
         self.home.mkdir(mode=0o700, parents=True, exist_ok=True)
 
     def status(self) -> dict:
-        ready = os.name == "posix" and CLI.is_file() and bool(shutil.which("node"))
+        ready = CLI.is_file() and bool(shutil.which("node"))
         logged_in = False
         if ready:
             try:
@@ -502,12 +501,7 @@ class Runtime:
                                 stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
                                 start_new_session=os.name == "posix", bufsize=0)
         try:
-            remaining = memoryview(prompt.encode("utf-8"))
-            while remaining:
-                written = proc.stdin.write(remaining)
-                if not written:
-                    raise EvidenceError("引擎未接收完整问题，任务已停止")
-                remaining = remaining[written:]
+            write_input(proc, prompt.encode("utf-8"), cancel, time.monotonic() + budget)
             proc.stdin.close()
             try:
                 return consume_events(proc, cancel, progress, budget, text_only=text_only)

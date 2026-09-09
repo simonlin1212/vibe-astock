@@ -1,12 +1,12 @@
-"""Research subscription adapter over private stdin. Parent owns one POSIX group."""
+"""Research subscription adapter over private stdin. Parent owns a guarded process tree."""
 from __future__ import annotations
 import json
 import os
-import select
 import subprocess
 import sys
 import threading
 import time
+from .process_io import read_chunk, write_input, GUARD_REAP_EXIT
 from .evidence import EvidenceError, canonical
 
 
@@ -41,26 +41,15 @@ def call_bridge(runtime, agent: str, request: dict, cancel: threading.Event, pro
     deadline = time.monotonic() + timeout
     pending, size, result, exit_code = b'', 0, None, None
     try:
-        payload = memoryview((canonical({'protocol':1, 'agent':agent, **request})+'\n').encode())
-        os.set_blocking(proc.stdin.fileno(), False)
-        while payload:
-            if cancel.is_set():
-                raise EvidenceError('任务已取消')
-            if time.monotonic() > deadline:
-                raise EvidenceError('订阅连接超时，已停止')
-            if select.select([], [proc.stdin], [], .1)[1]:
-                try:
-                    payload = payload[os.write(proc.stdin.fileno(), payload):]
-                except BlockingIOError:
-                    pass
+        write_input(proc, (canonical({'protocol':1, 'agent':agent, **request})+'\n').encode(), cancel, deadline)
         while True:
             if cancel.is_set():
                 raise EvidenceError('任务已取消')
             if time.monotonic() > deadline:
                 raise EvidenceError('订阅连接超时，已停止')
-            if not select.select([proc.stdout], [], [], .1)[0]:
+            chunk = read_chunk(proc.stdout, .1)
+            if chunk is None:
                 continue
-            chunk = os.read(proc.stdout.fileno(), 65536)
             if not chunk:
                 break
             size += len(chunk)
@@ -90,7 +79,7 @@ def call_bridge(runtime, agent: str, request: dict, cancel: threading.Event, pro
                     if result is not None:
                         raise EvidenceError('运行桥重复提交最终结果')
                     result = event
-        if pending.strip() or proc.wait(timeout=5) != -9 or exit_code != 0 or result is None:
+        if pending.strip() or proc.wait(timeout=5) != GUARD_REAP_EXIT or exit_code != 0 or result is None:
             raise EvidenceError('订阅运行桥未完整退出，未保存结果')
         return result
     finally:
@@ -113,7 +102,7 @@ def invoke(runtime, run, source, prompt, system, cancel, progress, budget, *, to
     if tools:
         request['mcp'] = {'serverName':'astock','command':sys.executable,
                           'args':['-m','review_agent.mcp_server'],
-                          'env':{'PYTHONPATH':str(REPO),'ASTOCK_AGENT_RUN':str(run)},
+                          'env':{'PYTHONPATH':str(REPO),'ASTOCK_AGENT_RUN':str(run),'PYTHONUTF8':'1','PYTHONIOENCODING':'utf-8'},
                           'allowedTools':['mcp__astock__'+name for name in tools], 'maxTurns':32}
     result = call_bridge(runtime, source['provider'], request, cancel, progress, budget + 10)
     text = result.get('text')

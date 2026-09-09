@@ -123,13 +123,23 @@ sh scripts/doctor
 sh scripts/start
 ```
 
+On Windows 10/11, double-click [启动 Vibe AStock.cmd](启动%20Vibe%20AStock.cmd), or run these commands from the repository root in PowerShell or CMD:
+
+```powershell
+py -3 -X utf8 scripts/manage.py setup
+.venv\Scripts\python.exe -X utf8 scripts/manage.py doctor
+.venv\Scripts\python.exe -X utf8 scripts/manage.py start
+```
+
+Windows uses the same local browser interface. Install Python (including the `py` launcher) and Node.js first. Keep the launch window open and press Ctrl+C to stop. Add `--port 8911` after `start` to change ports. Rerun `setup` and `doctor` after updating the source.
+
 The default address is `http://127.0.0.1:8910`, bound to the local loopback interface. If the port is occupied, use `sh scripts/start --port 8911`. Development previews may use other ports; the interface does not depend on a particular development port.
 
 Open Connect AI to sign in or enter your own API configuration, test it, and save it. Viewing quotes and existing records does not require generating an AI report first. Starting the service does not automatically generate a review. Connection tests and AI tasks may consume the selected service's quota.
 
 Before updating source code, stop the service and back up the data listed below. Preserve local modifications; after updating, rerun `sh scripts/setup` and `sh scripts/doctor`. Startup logs are in `.local/startup.log`; check for personal information before sharing logs.
 
-The current physical-machine validation environment is macOS. Linux has a startup implementation but has not completed full physical-machine acceptance. The new Agent does not currently support Windows; legacy manual-start instructions do not establish compatibility.
+The local backend has startup paths for macOS, Linux, and Windows; AI access no longer rejects Windows by platform. Local regression tests have been run on macOS. Native Windows automated tests are included in the workflow but still await execution and acceptance; Linux also lacks full physical-machine acceptance. Each provider still requires a connection test using your own account or key.
 
 ## Connect AI
 

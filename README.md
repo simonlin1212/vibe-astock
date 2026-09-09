@@ -123,13 +123,23 @@ sh scripts/doctor
 sh scripts/start
 ```
 
+Windows 10/11 可双击 [启动 Vibe AStock.cmd](启动%20Vibe%20AStock.cmd)，或在 PowerShell / CMD 的仓库根目录运行：
+
+```powershell
+py -3 -X utf8 scripts/manage.py setup
+.venv\Scripts\python.exe -X utf8 scripts/manage.py doctor
+.venv\Scripts\python.exe -X utf8 scripts/manage.py start
+```
+
+Windows 也在本机浏览器中使用；需要安装 Python（含 `py` 启动器）和 Node.js。保留启动窗口，按 Ctrl+C 停止服务；更换端口可在 `start` 后加 `--port 8911`。更新源码后重新运行上述 `setup` 和 `doctor`。
+
 默认地址为 `http://127.0.0.1:8910`，只监听本机回环地址。端口被占用时可运行 `sh scripts/start --port 8911`。开发预览可使用其他端口；截图中的布局不依赖固定开发端口。
 
 先到「接入 AI」完成登录或填写自己的 API 配置，测试成功后保存。查看行情与已有记录不要求先生成 AI 报告；启动服务也不会自动生成复盘。连接测试和 AI 任务可能消耗所选服务的额度。
 
 源码更新前停止服务并备份下节列出的数据；保留本地修改，更新后重新运行 `sh scripts/setup` 与 `sh scripts/doctor`。日志位于 `.local/startup.log`，分享日志前检查个人信息。
 
-当前真机验证环境是 macOS。Linux 有启动实现但未完成整套真机验收；新版 Agent 暂不支持 Windows，不能沿用旧版手动启动说明宣称兼容。
+本地后台提供 macOS、Linux 和 Windows 启动路径，AI 接入不再按 Windows 平台拒绝。当前已完成的本机回归环境为 macOS；Windows 原生自动测试已纳入工作流，尚待运行验收，Linux 也未完成整套真机验收。各供应商仍须用自己的账户或密钥完成连接测试。
 
 ## 接入 AI
 

@@ -1,7 +1,7 @@
 """Local setup, offline diagnostics and foreground launch (Python standard library).
 
 Uses the existing venv, npm lockfiles and Uvicorn service. No global package,
-credential or OS service installation. Windows Agent support is a later phase.
+credential or OS service installation. Supports local browser startup on Windows too.
 """
 from __future__ import annotations
 
@@ -21,6 +21,7 @@ import urllib.request
 import uuid
 import webbrowser
 
+PLATFORM = os.name
 ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -29,12 +30,29 @@ class SetupError(RuntimeError):
 
 
 def python_at(root: Path) -> Path:
-    return root / ".venv/bin/python"
+    return root / (".venv/Scripts/python.exe" if PLATFORM == "nt" else ".venv/bin/python")
+
+
+def npm_command():
+    if PLATFORM != "nt":
+        return ["npm"]
+    npm = shutil.which("npm")
+    node = shutil.which("node")
+    if npm and node:
+        # Standard Node/npm installation and nvm-windows layout; no cmd.exe,
+        # shell=True, or shell interpolation of a user-chosen checkout path.
+        entry = Path(npm).resolve().parent / "node_modules/npm/bin/npm-cli.js"
+        if entry.is_file():
+            return [node, str(entry)]
+    raise SetupError("无法找到 npm 的 Node 入口，请重新安装官方 Node.js 22+（含 npm）。")
 
 
 def run(argv, root, timeout=900):
     try:
-        subprocess.run([str(v) for v in argv], cwd=root, check=True, timeout=timeout)
+        if str(argv[0]) == "npm":
+            argv = npm_command() + list(argv[1:])
+        subprocess.run([str(v) for v in argv], cwd=root, check=True, timeout=timeout,
+                       env={**os.environ, "PYTHONUTF8": "1", "PYTHONIOENCODING": "utf-8"})
     except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired):
         raise SetupError("此步骤未完成，请检查上方提示后重新运行；已有用户数据不会删除。") from None
 
@@ -53,15 +71,13 @@ def fingerprint(root: Path) -> str:
 
 def probe(argv, root, timeout=30):
     try:
-        p = subprocess.run([str(v) for v in argv], cwd=root, capture_output=True, text=True, timeout=timeout)
+        p = subprocess.run([str(v) for v in argv], cwd=root, capture_output=True, text=True, encoding="utf-8", timeout=timeout)
         return p.returncode == 0
     except (OSError, subprocess.TimeoutExpired):
         return False
 
 
 def prerequisites(root):
-    if os.name != "posix":
-        raise SetupError("此启动器暂支持 macOS/Linux；Windows 请按 README 使用原有复盘功能。")
     if sys.version_info < (3, 10):
         raise SetupError("请安装 Python 3.10 或更高版本，推荐 Python 3.12。")
     if not shutil.which("npm") or not probe(["node", "-e", "process.exit(Number(process.versions.node.split('.')[0])>=22?0:1)"], root):
@@ -78,7 +94,7 @@ for name in ['fastapi','uvicorn','langgraph','langchain_openai','akshare','reque
 print('ASTOCK_IMPORTS='+json.dumps(failures))
 """
     try:
-        p = subprocess.run([str(python_at(root)), "-c", code], cwd=root, capture_output=True, text=True, timeout=60)
+        p = subprocess.run([str(python_at(root)), "-c", code], cwd=root, capture_output=True, text=True, encoding="utf-8", timeout=60)
     except subprocess.TimeoutExpired:
         return False, "依赖加载超过一分钟；请检查机器负载后重试体检"
     except OSError:
@@ -100,7 +116,7 @@ def doctor(root: Path) -> list[dict]:
     checks = []
     def add(name, ok, action):
         checks.append({"name": name, "ok": bool(ok), "action": "通过" if ok else action})
-    add("平台", os.name == "posix", "新 Agent 暂支持 macOS/Linux")
+    add("平台", PLATFORM in ("posix", "nt"), "请使用 macOS、Linux 或 Windows 10/11")
     py = python_at(root)
     add("Python 环境", probe([py, "-c", "import sys;sys.exit(sys.version_info < (3,10))"], root), "运行 scripts/setup")
     add("Node.js / npm", bool(shutil.which("npm")) and probe(["node", "-e", "process.exit(Number(process.versions.node.split('.')[0])>=22?0:1)"], root), "安装 Node.js 22+（包含 npm）")
@@ -153,7 +169,7 @@ def setup(root: Path):
     tmp = local / ("setup-" + uuid.uuid4().hex + ".tmp")
     tmp.write_text(json.dumps({"fingerprint": fingerprint(root)}, indent=2))
     tmp.replace(local / "setup.json")
-    print("安装完成。下次直接打开「启动 Vibe AStock.command」。", flush=True)
+    print("安装完成。下次直接打开「启动 Vibe AStock.cmd」。" if PLATFORM == "nt" else "安装完成。下次直接打开「启动 Vibe AStock.command」。", flush=True)
 
 
 def healthy(url: str, launch_id: str) -> bool:
@@ -170,6 +186,11 @@ def healthy(url: str, launch_id: str) -> bool:
 
 def stop(child):
     if child.poll() is not None:
+        return
+    if PLATFORM == "nt":
+        # child is the Job-owning guard, never the bare Uvicorn process.
+        child.kill()
+        child.wait(timeout=10)
         return
     try:
         os.killpg(child.pid, signal.SIGTERM)
@@ -197,14 +218,20 @@ def start(root: Path, port: int, browser: bool, timeout=60):
     except OSError:
         raise SetupError(f"端口 {port} 已被占用。请关闭原服务，或使用 scripts/start --port 8911。") from None
     launch_id = uuid.uuid4().hex
-    env = {**os.environ, "ASTOCK_LAUNCH_ID": launch_id}
+    env = {**os.environ, "ASTOCK_LAUNCH_ID": launch_id, "PYTHONUTF8": "1", "PYTHONIOENCODING": "utf-8"}
     log = root / ".local/startup.log"
     log.parent.mkdir(mode=0o700, exist_ok=True)
     fd = os.open(log, os.O_CREAT | os.O_APPEND | os.O_WRONLY, 0o600)
     with os.fdopen(fd, "a") as output:
-        child = subprocess.Popen([str(python_at(root)), "-m", "uvicorn", "server:app", "--host", "127.0.0.1",
-                                  "--port", str(port), "--no-access-log"], cwd=root, env=env,
-                                 stdout=output, stderr=output, start_new_session=True)
+        command = [str(python_at(root)), "-m", "uvicorn", "server:app", "--host", "127.0.0.1",
+                   "--port", str(port), "--no-access-log"]
+        if PLATFORM == "nt":
+            # No time limit for the foreground web service; parent death remains
+            # guarded, including forcibly closing the Windows terminal window.
+            command = [str(python_at(root)), str(root / "review_agent/engine_guard.py"),
+                       "0", str(os.getpid()), *command]
+        child = subprocess.Popen(command, cwd=root, env=env, stdout=output, stderr=output,
+                                 start_new_session=PLATFORM != "nt")
         url = f"http://127.0.0.1:{port}"
         try:
             deadline = time.monotonic() + timeout

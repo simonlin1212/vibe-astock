@@ -8,6 +8,7 @@ import sys
 import time
 import uuid
 
+from .process_io import GUARD_REAP_EXIT
 from .evidence import EvidenceError, canonical
 
 QUERY_CALLS = {"query_quote", "query_valuation", "query_reports", "query_news", "query_global_stock"}
@@ -45,8 +46,8 @@ def fetch_public(name, args, directory, check, *, timeout=90):
         if path.stat().st_size > 5_000_000:
             raise EvidenceError("公开资料结果过大")
         try:
-            events = [json.loads(line) for line in path.read_text().splitlines()]
-            if (proc.returncode != -9 or len(events) != 2 or events[-1] != {"type": "bridge_exit", "code": 0}
+            events = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
+            if (proc.returncode != GUARD_REAP_EXIT or len(events) != 2 or events[-1] != {"type": "bridge_exit", "code": 0}
                     or events[0].get("type") != "result" or "value" not in events[0]):
                 raise ValueError()
         except (ValueError, UnicodeError, AttributeError):

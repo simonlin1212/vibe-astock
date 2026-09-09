@@ -133,18 +133,21 @@ class Manager:
         self.active: tuple[str, threading.Event, threading.Thread] | None = None
         self._instance_lock = None
         self.access = Access(runtime, store.root)
-        if os.name == "posix":
-            import fcntl
-            self._instance_lock = (store.root / "backend.lock").open("a")
-            try:
+        self._instance_lock = (store.root / "backend.lock").open("a+b")
+        try:
+            if os.name == "nt":
+                import msvcrt
+                self._instance_lock.seek(0)
+                msvcrt.locking(self._instance_lock.fileno(), msvcrt.LK_NBLCK, 1)
+            else:
+                import fcntl
                 fcntl.flock(self._instance_lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-            except OSError:
-                self._instance_lock.close()
-                raise EvidenceError("另一个后端正在使用复盘 Agent 数据目录") from None
-            # Acquiring the kernel lock proves no previous Manager is alive.
-            # No retries or re-billing: a backend crash becomes an explicit failure.
-            with store.connect() as db:
-                db.execute("UPDATE turns SET status='failed',error='服务已重启，上次任务已中断；此前成功结果已保留' WHERE status='running'")
+        except OSError:
+            self._instance_lock.close()
+            raise EvidenceError("另一个后端正在使用复盘 Agent 数据目录") from None
+        # Only the owner of the kernel lock may mark crashed tasks interrupted.
+        with store.connect() as db:
+            db.execute("UPDATE turns SET status='failed',error='服务已重启，上次任务已中断；此前成功结果已保留' WHERE status='running'")
         self.followup = Followup(store, reviews)
         from .daily import Daily
         self.daily = Daily(self)
