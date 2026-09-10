@@ -11,7 +11,7 @@
   <img src="https://img.shields.io/badge/license-Apache--2.0-blue.svg" alt="License">
   <img src="https://img.shields.io/badge/python-3.12-3776AB.svg?logo=python&logoColor=white" alt="Python">
   <img src="https://img.shields.io/badge/react-19-61DAFB.svg?logo=react&logoColor=white" alt="React">
-  <a href="https://github.com/simonlin1212/vibe-astock/releases/tag/v1.0.0"><img src="https://img.shields.io/badge/version-v1.0.0-orange.svg" alt="v1.0.0"></a>
+  <a href="https://github.com/simonlin1212/vibe-astock/releases/tag/v1.1.0"><img src="https://img.shields.io/badge/version-v1.1.0-orange.svg" alt="v1.1.0"></a>
 </p>
 
 <p align="center">
@@ -21,7 +21,7 @@
   <a href="CHANGELOG.md">更新日志</a>
 </p>
 
-**V1.0.0：从 v0.2.1 升级而来，Agent 底座升级为 OpenAI Codex Harness。**
+**V1.1.0：基于 OpenAI Codex Harness，完善 WorkBuddy 接入与复盘证据核验。**
 
 统一 AI 接入、任务进度与证据核验，保留并完善短线复盘、盯盘、个股研究和历史回测。提供 Codex、Claude、WorkBuddy / CodeBuddy 订阅接入入口，以及 DeepSeek 等 API 配置；具体要求见[接入 AI](#接入-ai)。
 
@@ -114,7 +114,7 @@ Vibe AStock 把 A 股短线研究中反复进行的工作放在一个本地网�
 
 ## 快速开始
 
-从 [v1.0.0 Release](https://github.com/simonlin1212/vibe-astock/releases/tag/v1.0.0) 获取源码并解压，在项目目录中按下面步骤启动。已有用户请先备份本地数据，更新源码后重新准备依赖。
+从 [v1.1.0 Release](https://github.com/simonlin1212/vibe-astock/releases/tag/v1.1.0) 获取源码并解压，在项目目录中按下面步骤启动。已有用户请先备份本地数据，更新源码后重新准备依赖。
 
 环境要求：Python 3.10+（推荐 3.12）、Node.js 22+（含 npm）。首次准备环境需要联网下载依赖。
 
@@ -154,7 +154,7 @@ Windows 也在本机浏览器中使用；需要安装 Python（含 `py` 启动�
 |---|---|
 | Codex 订阅 | 产品专用 ChatGPT 授权与隔离引擎；已有真实登录、连接及业务运行记录，模型可用性受账户额度限制 |
 | Claude 订阅 | 本机官方 CLI 接入，已有真实复盘与辩论记录；需要自己的安装、登录和有效订阅，历史成功不代表当前账户状态 |
-| WorkBuddy / CodeBuddy | 已有适配入口，**尚未完成真实业务验证** |
+| WorkBuddy / CodeBuddy | 使用本机 CLI 登录；本次仅实测 macOS WorkBuddy 内置 CodeBuddy CLI 2.137.1 的连接、受控工具、普通对话与单日完整复盘流程 |
 | OpenAI API | 使用用户自己的配置；不以订阅测试代替 API 实测，尚未完成全部兼容验收 |
 | DeepSeek / MiMo | 提供模型与地址预设，支持自行修改；使用自己的密钥测试成功后保存 |
 | 智谱 GLM / Kimi / 通义千问 | 提供阿里云百炼预设，需要填写工作空间地址和百炼密钥；须以实际连接测试为准 |
@@ -222,11 +222,11 @@ python scripts/manage.py start
 
 ## 验证范围
 
-v1.0.0 发布检查：macOS 后端三目录 **1262 项通过、4 项 Windows 专项跳过**，前端 **36 项通过**，类型检查与生产构建通过。回归包含 README、网页页脚、包配置和 API 的产品版本一致性检查。
+v1.1.0 发布检查：macOS 后端三目录 **1283 项通过、4 项 Windows 专项跳过**，前端 **36 项通过**，类型检查与生产构建通过。回归包含 README、网页页脚、包配置和 API 的产品版本一致性检查。
 
 2026-09-10 源码基线 `9d84e0d` 的 Windows Server 2025 原生验收通过 **34 项运行契约和87项业务回归**，以及全新环境准备、体检、捆绑引擎启动、两次真实 HTTP 网页/API 启动和强制退出后的重启。[查看 Windows 验收记录](https://github.com/simonlin1212/vibe-astock/actions/runs/34417311929)。
 
-已有部分真实日期复盘、日期切换、页面问答和 A/H/US 历史回测与独立复算记录。上述结果不代表所有供应商、Windows 10/11 实体用户电脑、Linux 全流程或连续完整交易日均已验收；WorkBuddy / CodeBuddy 的真实业务验证仍未完成。保留既有依赖弃用与构建体积提示。
+已有部分真实日期复盘、日期切换、页面问答和 A/H/US 历史回测与独立复算记录。上述结果不代表所有供应商、Windows 10/11 实体用户电脑、Linux 全流程或连续完整交易日均已验收；已使用 macOS WorkBuddy 内置 CodeBuddy CLI 2.137.1 完成一次单日复盘流程验证，并验证连接、受控工具、普通对话及取消/超时；独立安装的 CodeBuddy CLI、其他平台、全部模型及报告推断的正确性不在此次验证范围内。保留既有依赖弃用与构建体积提示。
 
 在完成环境准备的仓库中可运行：
 

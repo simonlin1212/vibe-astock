@@ -20,7 +20,7 @@ from pathlib import Path
 
 from .engine_guard import guard_python
 from .evidence import EvidenceError, ToolSession, canonical, validate_answer
-from .product_policy import PRODUCT_POLICY, has_trade_recommendation
+from .product_policy import PRODUCT_POLICY, ORDINARY_STATISTICS_POLICY, has_trade_recommendation
 
 from .process_io import read_chunk, write_input
 
@@ -482,6 +482,7 @@ class Runtime:
                 "样本资料不等于全市场，不提供个股推荐、交易动作、点位或买卖时机。")
         if ordinary:
             config["developer_instructions"] = "你是 Vibe AStock 的普通对话助手。无工具、无联网、无自动任务，不读取本地资料。只根据用户主动输入和当前对话回答，不声称查询了实时数据。本首页开启 Agent 也只查询已有公开复盘，不联网取实时行情。生成复盘请去复盘报告，行情去盘面数据；不要承诺聊天开关可以执行这些任务。不提供个股交易指令。"
+            config["developer_instructions"] += "\n" + ORDINARY_STATISTICS_POLICY
         config["developer_instructions"] += "\n" + PRODUCT_POLICY
         if source["provider"] in ("claude", "codebuddy"):
             from .subscription_bridge import invoke

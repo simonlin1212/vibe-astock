@@ -4,6 +4,26 @@ from pathlib import Path
 
 import pytest
 
+
+@pytest.mark.parametrize("provider", ["codebuddy", "claude"])
+def test_direct_chat_sends_statistics_contract_to_subscription_bridge(tmp_path, monkeypatch, provider):
+    import threading
+    from review_agent.runtime import Runtime
+    from review_agent import subscription_bridge
+    from review_agent.product_policy import ORDINARY_STATISTICS_POLICY
+    captured = []
+    def invoke(runtime, run, source, prompt, system, cancel, progress, budget, *, tools):
+        captured.append((system, tools))
+        return "有效样本口径需要披露覆盖率。"
+    monkeypatch.setattr(subscription_bridge, "invoke", invoke)
+    runtime = Runtime(tmp_path)
+    source = {"provider": provider, "model": "default", "baseURL": ""}
+    result = runtime.run({"source": source, "bundle": {"context": {"mode": "direct"}}, "turns": []},
+                         "没有行情怎么处理？", "", "statistics-chat", threading.Event(), lambda _: None)
+    assert result["status"] == "complete"
+    assert ORDINARY_STATISTICS_POLICY in captured[0][0]
+    assert captured[0][1] == ()
+
 from review_agent.evidence import EvidenceError, build_bundle, ToolSession, validate_answer
 
 

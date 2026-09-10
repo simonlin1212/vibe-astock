@@ -30,5 +30,5 @@ export const FEATURES = FEATURE_GROUPS.flatMap(group => [...group.features]);
 export const SUBSCRIPTIONS = [
   { id: 'codex-private', label: 'Codex订阅版', detail: '产品专用登录 · 已有复盘与追问接入' },
   { id: 'claude', label: 'Claude订阅', detail: '本机 Claude Code · 官方订阅登录' },
-  { id: 'codebuddy', label: 'WorkBuddy CLI', detail: 'WorkBuddy / CodeBuddy · 适配已接线，待真实验证' },
+  { id: 'codebuddy', label: 'WorkBuddy CLI', detail: 'WorkBuddy 内置 CodeBuddy · macOS 已完成单日复盘流程实测' },
 ] as const;

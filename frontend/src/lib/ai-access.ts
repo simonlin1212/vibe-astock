@@ -6,7 +6,7 @@ const hosted = '通过阿里云百炼接入，请使用百炼工作空间的地�
 export const SUBSCRIPTION_PROVIDERS = [
   { id: 'codex-private', name: 'Codex 订阅', detail: '使用 ChatGPT 账户登录产品专用空间' },
   { id: 'claude', name: 'Claude 订阅', detail: '使用本机 Claude Code 登录' },
-  { id: 'codebuddy', name: 'WorkBuddy 订阅', detail: '使用本机 CodeBuddy 登录；尚未完成真实业务验证' },
+  { id: 'codebuddy', name: 'WorkBuddy 订阅', detail: '使用 WorkBuddy 内置 CodeBuddy 登录；macOS 已完成单日复盘流程实测' },
 ];
 const preset = (id: string, name: string, baseURL: string, models: string[], detail = '填写该服务商的 API 密钥，可按账户权限修改模型。') =>
   ({ id, name, baseURL, models: models.map(id => ({ id, name: id })), detail });

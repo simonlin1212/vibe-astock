@@ -11,7 +11,7 @@
   <img src="https://img.shields.io/badge/license-Apache--2.0-blue.svg" alt="License">
   <img src="https://img.shields.io/badge/python-3.12-3776AB.svg?logo=python&logoColor=white" alt="Python">
   <img src="https://img.shields.io/badge/react-19-61DAFB.svg?logo=react&logoColor=white" alt="React">
-  <a href="https://github.com/simonlin1212/vibe-astock/releases/tag/v1.0.0"><img src="https://img.shields.io/badge/version-v1.0.0-orange.svg" alt="v1.0.0"></a>
+  <a href="https://github.com/simonlin1212/vibe-astock/releases/tag/v1.1.0"><img src="https://img.shields.io/badge/version-v1.1.0-orange.svg" alt="v1.1.0"></a>
 </p>
 
 <p align="center">
@@ -21,7 +21,7 @@
   <a href="CHANGELOG.md">Changelog</a>
 </p>
 
-**V1.0.0 upgrades v0.2.1 with OpenAI Codex Harness as its Agent foundation.**
+**V1.1.0 builds on OpenAI Codex Harness with improved WorkBuddy integration and review evidence validation.**
 
 Shared AI connections, task progress, and evidence validation support market reviews, market watch, stock research, and historical backtesting. Connection options include Codex, Claude, WorkBuddy / CodeBuddy subscriptions, and API configurations such as DeepSeek. See [Connect AI](#connect-ai) for requirements and verification status.
 
@@ -114,7 +114,7 @@ The journal supports grouped self-review using market context, recorded methods,
 
 ## Quick start
 
-Get and extract the source from the [v1.0.0 Release](https://github.com/simonlin1212/vibe-astock/releases/tag/v1.0.0), then follow these steps in the project directory. Existing users should back up local data before updating the source and preparing dependencies again.
+Get and extract the source from the [v1.1.0 Release](https://github.com/simonlin1212/vibe-astock/releases/tag/v1.1.0), then follow these steps in the project directory. Existing users should back up local data before updating the source and preparing dependencies again.
 
 Requirements: Python 3.10+ (3.12 recommended), Node.js 22+ including npm. Initial setup requires internet access to download dependencies.
 
@@ -154,7 +154,7 @@ Web AI entry points share the source and model tested and saved in Connect AI. A
 |---|---|
 | Codex subscription | Product-specific ChatGPT authorization and isolated engine; real login, connection, and business runs have been recorded. Model availability depends on account quota |
 | Claude subscription | Official local CLI integration, with real review and discussion runs recorded. Requires the user's installation, login, and valid subscription; past success does not establish current account status |
-| WorkBuddy / CodeBuddy | Adapter available; **real business validation is not complete**. |
+| WorkBuddy / CodeBuddy | Uses local CLI login. This test covered only CodeBuddy CLI 2.137.1 bundled with WorkBuddy on macOS: connection, bounded tools, ordinary chat, and a complete single-day review workflow. |
 | OpenAI API | Uses the user's own configuration. Subscription tests do not substitute for API validation; the full compatibility assessment is incomplete |
 | DeepSeek / MiMo | Editable model and endpoint presets; use your own key and pass the connection test before saving |
 | GLM / Kimi / Qwen | Alibaba Cloud Bailian presets require the workspace endpoint and a Bailian key; availability must be tested with your account |
@@ -222,11 +222,11 @@ Provenance and licensing for the event-probability and backtesting code are reco
 
 ## Validation scope
 
-v1.0.0 release checks: **1,262 backend tests passed on macOS, with four Windows-specific tests skipped**; **36 frontend tests**, type checking, and a production build passed. Regression checks cover product-version consistency across the READMEs, web footer, package manifests, and APIs.
+v1.1.0 release checks: **1,283 backend tests passed on macOS, with four Windows-specific tests skipped**; **36 frontend tests**, type checking, and a production build passed. Regression checks cover product-version consistency across the READMEs, web footer, package manifests, and APIs.
 
 For source baseline `9d84e0d` on September 10, 2026, native Windows Server 2025 acceptance passed **34 runtime contracts and 87 business regression tests**, plus fresh setup, diagnostics, bundled-engine startup, two real HTTP web/API launches, and restart after forced termination. [Windows acceptance record](https://github.com/simonlin1212/vibe-astock/actions/runs/34417311929).
 
-Evidence also includes selected real-date reviews, date switching, page questions, and A-share, Hong Kong, and US backtests with independent recalculation. These results do not establish acceptance for every provider, physical Windows 10/11 user machine, complete Linux workflow, or continuous full trading day. Real business validation for WorkBuddy / CodeBuddy remains incomplete. Existing dependency-deprecation and build-size warnings remain.
+Evidence also includes selected real-date reviews, date switching, page questions, and A-share, Hong Kong, and US backtests with independent recalculation. These results do not establish acceptance for every provider, physical Windows 10/11 user machine, complete Linux workflow, or continuous full trading day. CodeBuddy CLI 2.137.1 bundled with WorkBuddy on macOS completed one single-day review workflow; connection, bounded tools, ordinary chat, cancellation, and timeout handling were also tested. Independently installed CodeBuddy CLI, other platforms, every model, and the correctness of report interpretations are outside this verification scope. Existing dependency-deprecation and build-size warnings remain.
 
 With the repository environment prepared, run:
 
