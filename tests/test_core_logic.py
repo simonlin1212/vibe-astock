@@ -15,6 +15,9 @@
 from __future__ import annotations
 
 import pytest
+import socket
+
+_REAL_SOCKET_CONNECT = socket.socket.connect
 
 from duanxian import emotion_metrics as em
 from duanxian import reflection as rf
@@ -7266,13 +7269,26 @@ class TestVersionIsConsistentEverywhere:
             assert package["name"] == lock["name"] == lock["packages"][""]["name"]
         assert f"## v{version}" in self._read("CHANGELOG.md")
 
-    def test_public_api_versions_match_product_identity(self):
+    def test_public_api_versions_match_product_identity(self, monkeypatch):
         import json
         import server
         from fastapi.testclient import TestClient
         identity = json.loads(self._read("product.json"))
         assert server.app.version == identity["version"]
         assert server.app.title == identity["name"]
+        # Windows asyncio builds its internal socketpair over loopback TCP.
+        # Permit only literal loopback here; external data connections stay blocked.
+        def loopback_only(sock, address):
+            assert address[0] in ("127.0.0.1", "::1"), "external connection blocked"
+            return _REAL_SOCKET_CONNECT(sock, address)
+        monkeypatch.setattr(socket.socket, "connect", loopback_only)
+        with socket.socket() as sock:
+            with pytest.raises(AssertionError, match="external connection blocked"):
+                sock.connect(("192.0.2.1", 443))
+        # Exercise Windows' TCP socketpair path on macOS/Linux as well.
+        left, right = socket._fallback_socketpair()
+        left.close()
+        right.close()
         client = TestClient(server.app, base_url="http://127.0.0.1")
         try:
             for path in ("/api/astock/health", "/api/health"):
