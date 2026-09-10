@@ -5,6 +5,14 @@ on:
     paths:
       - 'review_agent/**'
       - 'runtime/**'
+      - 'product.json'
+      - 'README*.md'
+      - 'CHANGELOG.md'
+      - 'frontend/package*.json'
+      - 'frontend/src/components/layout/Layout.tsx'
+      - 'server.py'
+      - 'vr/app.py'
+      - 'vr/product_version.py'
       - 'scripts/**'
       - 'tests/**'
       - 'requirements.txt'
@@ -14,6 +22,14 @@ on:
     paths:
       - 'review_agent/**'
       - 'runtime/**'
+      - 'product.json'
+      - 'README*.md'
+      - 'CHANGELOG.md'
+      - 'frontend/package*.json'
+      - 'frontend/src/components/layout/Layout.tsx'
+      - 'server.py'
+      - 'vr/app.py'
+      - 'vr/product_version.py'
       - 'scripts/**'
       - 'tests/**'
       - 'requirements.txt'
@@ -51,6 +67,6 @@ jobs:
           tests/test_review_agent.py::test_crashed_backend_releases_lock_and_recovers_without_rebilling
           tests/test_launcher.py -k "not terminal_hangup and not real_http_ready"
       - name: Issue regressions and daily report preservation (synthetic only)
-        run: .venv/Scripts/python.exe -m pytest -q tests/test_issue_regressions.py tests/test_daily_grounding.py
+        run: .venv/Scripts/python.exe -m pytest -q tests/test_issue_regressions.py tests/test_daily_grounding.py tests/test_core_logic.py::TestVersionIsConsistentEverywhere
       - name: Real Windows local web startup and restart (no model requests)
         run: .venv/Scripts/python.exe -X utf8 tests/windows_web_smoke.py

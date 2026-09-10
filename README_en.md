@@ -1,9 +1,9 @@
 <p align="center"><a href="README.md">简体中文</a> | <b>English</b></p>
 
-<h1 align="center">Vibe-Astock</h1>
+<h1 align="center">Vibe AStock</h1>
 
 <p align="center">
-  <b>A local workspace for short-term A-share market review and tracking</b><br>
+  <b>A-share market review and tracking, built on OpenAI Codex Harness</b><br>
   Market observation · Evidence-based reviews · Bull–bear discussion · Historical backtesting · Local web UI
 </p>
 
@@ -11,8 +11,7 @@
   <img src="https://img.shields.io/badge/license-Apache--2.0-blue.svg" alt="License">
   <img src="https://img.shields.io/badge/python-3.12-3776AB.svg?logo=python&logoColor=white" alt="Python">
   <img src="https://img.shields.io/badge/react-19-61DAFB.svg?logo=react&logoColor=white" alt="React">
-  <img src="https://img.shields.io/badge/version-v0.2.1-orange.svg" alt="Previous public version baseline">
-  <img src="https://img.shields.io/badge/status-unreleased%20web%20development-orange.svg" alt="Unreleased web development build">
+  <a href="https://github.com/simonlin1212/vibe-astock/releases/tag/v1.0.0"><img src="https://img.shields.io/badge/version-v1.0.0-orange.svg" alt="v1.0.0"></a>
 </p>
 
 <p align="center">
@@ -22,7 +21,9 @@
   <a href="CHANGELOG.md">Changelog</a>
 </p>
 
-This README describes the **September 9, 2026 development version, which has not been released**. The v0.2.1 badge identifies the previous public version. The new features below require the current development source.
+**V1.0.0 upgrades v0.2.1 with OpenAI Codex Harness as its Agent foundation.**
+
+Shared AI connections, task progress, and evidence validation support market reviews, market watch, stock research, and historical backtesting. Connection options include Codex, Claude, WorkBuddy / CodeBuddy subscriptions, and API configurations such as DeepSeek. See [Connect AI](#connect-ai) for requirements and verification status.
 
 ---
 
@@ -34,7 +35,7 @@ Contact: [simonlin0423@gmail.com](mailto:simonlin0423@gmail.com)
 
 ## Purpose
 
-Vibe-Astock brings recurring short-term A-share research tasks into one local web workspace: inspect the market and yesterday's limit-up cohorts, organize review evidence, check subsequent changes, and revisit personal records and historical rules.
+Vibe AStock brings recurring short-term A-share research tasks into one local web workspace: inspect the market and yesterday's limit-up cohorts, organize review evidence, check subsequent changes, and revisit personal records and historical rules.
 
 Source data, program calculations, manual records, and AI interpretation are presented separately. Quotes and statistics do not depend on AI generation. AI explains materials, compares interpretations, and organizes conditions for later verification. Market-sentiment classifications are analytical frameworks, not objective facts; a single indicator cannot establish a trading conclusion.
 
@@ -71,7 +72,11 @@ Connect AI is at the bottom of the sidebar. Holdings and the watchlist appear in
 
 Collection requires the local service to be running and data sources to be available. Overnight, lunch-break, or stale quotes cannot stand in for valid snapshots of an active session.
 
+The market-data page includes an unlock calendar for the next or most recent ten calendar days, with watchlist matching performed in the browser. Share counts describe the current unlock batch; percentages use total equity. Source failures are reported rather than treated as no unlocks. Results reaching the 500-record limit are marked as partial coverage.
+
 ### Market review: establish the date, sample, and evidence first
+
+Data retrieval shows the current source category and has a 90-second limit per call, bounded by the remaining task deadline. Timeout or cancellation cleans up the corresponding process. AI generation takes additional time.
 
 Choose a target trading date before generating a review, including dates without an existing report. The page distinguishes the selected date, the displayed report's trading date, and its generation time. It does not substitute an existing report's date for a new selection. Tasks support progress, cancellation, and status recovery after a refresh. Failed generation preserves the old report; regeneration saves versions, and filling in an earlier date does not move the latest-report pointer backwards.
 
@@ -109,7 +114,7 @@ The journal supports grouped self-review using market context, recorded methods,
 
 ## Quick start
 
-These steps apply to a directory **already containing this development snapshot**. They are not installation instructions for a released major version.
+Get and extract the source from the [v1.0.0 Release](https://github.com/simonlin1212/vibe-astock/releases/tag/v1.0.0), then follow these steps in the project directory. Existing users should back up local data before updating the source and preparing dependencies again.
 
 Requirements: Python 3.10+ (3.12 recommended), Node.js 22+ including npm. Initial setup requires internet access to download dependencies.
 
@@ -139,7 +144,7 @@ Open Connect AI to sign in or enter your own API configuration, test it, and sav
 
 Before updating source code, stop the service and back up the data listed below. Preserve local modifications; after updating, rerun `sh scripts/setup` and `sh scripts/doctor`. Startup logs are in `.local/startup.log`; check for personal information before sharing logs.
 
-The local backend has startup paths for macOS, Linux, and Windows; AI access no longer rejects Windows by platform. Local regression tests have been run on macOS. On native Windows Server 2025, 34 automated tests and a bundled-engine startup check have passed, covering process cleanup, directory locking, and synthetic access flows. This does not constitute physical-machine acceptance on Windows 10/11 or full Linux acceptance. Each provider still requires a connection test using your own account or key.
+The local backend has startup paths for macOS, Linux, and Windows. See [Validation scope](#validation-scope) for native Windows installation, cleanup, and web-restart tests. Test each provider with your own account or key.
 
 ## Connect AI
 
@@ -191,9 +196,9 @@ python scripts/manage.py start
 
 These settings apply only to processes launched from this terminal. Set them before each launch or in your own launcher script. On macOS/Linux, use equivalent exports, such as `export ASTOCK_DATA_HOME="/absolute/path/business-data"`. Existing defaults remain compatible; settings never move existing files automatically. To migrate, stop the service, back up and copy each old directory's contents to its corresponding destination, then start with the new settings and verify. Keep the originals until verified. Update any separately configured `VR_REPORTS_DIR` too. Browser records and repository `.local/` runtime logs are unaffected.
 
-The market-data page includes an unlock calendar for the next or most recent ten calendar days, with watchlist matching performed in the browser. Share counts describe the current unlock batch; percentages use total equity. Source failures are reported rather than treated as no unlocks. Results reaching the 500-record limit are marked as partial coverage.
-
 ## Architecture and development
+
+The Agent foundation uses an official, pinned OpenAI Codex Harness engine with short-term research workflows, bounded evidence tools, task management, and citation validation. Programs calculate market metrics and backtests; AI reads, explains, and answers follow-up questions. Claude and WorkBuddy / CodeBuddy connect through adapters for their local CLIs.
 
 ```text
 Public data → Raw archives and normalized definitions → Deterministic statistics / simulation
@@ -217,9 +222,11 @@ Provenance and licensing for the event-probability and backtesting code are reco
 
 ## Validation scope
 
-Validation of the September 9, 2026 development version passed **1,237 backend tests** across three directories, **36 frontend tests**, type checking, and a production build. Dependency-deprecation and build-size warnings remain.
+v1.0.0 release checks: **1,262 backend tests passed on macOS, with four Windows-specific tests skipped**; **36 frontend tests**, type checking, and a production build passed. Regression checks cover product-version consistency across the READMEs, web footer, package manifests, and APIs.
 
-Evidence includes selected real-date reviews, date switching, page questions, and A-share, Hong Kong, and US historical backtests with independent recalculation. **Continuous observation over a complete live trading day, compatibility acceptance for all providers and platforms, and formal release checks remain incomplete.** Offline regression tests, individual real runs, and screenshots cannot substitute for those checks.
+For source baseline `9d84e0d` on September 10, 2026, native Windows Server 2025 acceptance passed **34 runtime contracts and 87 business regression tests**, plus fresh setup, diagnostics, bundled-engine startup, two real HTTP web/API launches, and restart after forced termination. [Windows acceptance record](https://github.com/simonlin1212/vibe-astock/actions/runs/34417311929).
+
+Evidence also includes selected real-date reviews, date switching, page questions, and A-share, Hong Kong, and US backtests with independent recalculation. These results do not establish acceptance for every provider, physical Windows 10/11 user machine, complete Linux workflow, or continuous full trading day. Real business validation for WorkBuddy / CodeBuddy remains incomplete. Existing dependency-deprecation and build-size warnings remain.
 
 With the repository environment prepared, run:
 

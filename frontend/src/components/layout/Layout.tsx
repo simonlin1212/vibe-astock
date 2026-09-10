@@ -11,7 +11,8 @@ import { PhoenixTreeLogo } from '@/components/workspace/PhoenixTreeLogo';
 import { QuickAiConnect } from '@/components/workspace/QuickAiConnect';
 import { WorkspaceChat } from '@/components/workspace/WorkspaceChat';
 import { Dialog } from '@/components/workspace/Dialog';
-const APP_VERSION = "v0.2.1";
+import product from "../../../../product.json";
+const APP_VERSION = `v${product.version}`;
 function readCollapsed() { try { return localStorage.getItem('va-sidebar') === 'collapsed'; } catch { return false; } }
 function Shell() {
   const { pathname, search } = useLocation();
@@ -65,7 +66,7 @@ function Shell() {
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <header className="workspace-topbar flex min-h-16 shrink-0 items-center justify-between gap-2 px-4 md:px-8">
           <div className="flex min-w-0 items-center gap-3 text-xs"><button type="button" aria-label="打开导航" onClick={() => setMobileOpen(true)} className="p-2 md:hidden"><Menu className="h-4 w-4" /></button><span className="hidden text-muted-foreground sm:inline">工作空间 /</span><strong className="truncate font-medium">{title}</strong></div>
-          <div className="flex shrink-0 items-center gap-2"><span className="hidden text-[10px] text-muted-foreground lg:inline">{APP_VERSION} · 本地开发版</span><button type="button" onClick={toggle} aria-label={dark ? '切换为浅色' : '切换为深色'} className="rounded p-2 text-muted-foreground hover:bg-muted">{dark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}</button>{pathname !== '/' && <button type="button" onClick={() => setChatOpen(true)} className="ai-chat-trigger inline-flex items-center gap-1.5 rounded-full px-3 py-2 text-xs"><Sparkles className="h-4 w-4" />{state.enabled ? '问 Agent' : '问模型'}</button>}</div>
+          <div className="flex shrink-0 items-center gap-2"><span className="hidden text-[10px] text-muted-foreground lg:inline">{APP_VERSION}</span><button type="button" onClick={toggle} aria-label={dark ? '切换为浅色' : '切换为深色'} className="rounded p-2 text-muted-foreground hover:bg-muted">{dark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}</button>{pathname !== '/' && <button type="button" onClick={() => setChatOpen(true)} className="ai-chat-trigger inline-flex items-center gap-1.5 rounded-full px-3 py-2 text-xs"><Sparkles className="h-4 w-4" />{state.enabled ? '问 Agent' : '问模型'}</button>}</div>
         </header>
         <main ref={mainRef} id="workspace-main" tabIndex={-1} className="min-h-0 flex-1 overflow-auto"><div className="workspace-content"><Outlet /></div></main>
       </div>

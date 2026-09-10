@@ -1,9 +1,9 @@
 <p align="center"><b>简体中文</b> | <a href="README_en.md">English</a></p>
 
-<h1 align="center">Vibe-Astock</h1>
+<h1 align="center">Vibe AStock</h1>
 
 <p align="center">
-  <b>A 股短线复盘与跟踪工作台</b><br>
+  <b>基于 OpenAI Codex Harness 的 A 股短线复盘与跟踪工作台</b><br>
   盘面观察 · 证据复盘 · 多空辩论 · 历史回测 · 本地网页
 </p>
 
@@ -11,8 +11,7 @@
   <img src="https://img.shields.io/badge/license-Apache--2.0-blue.svg" alt="License">
   <img src="https://img.shields.io/badge/python-3.12-3776AB.svg?logo=python&logoColor=white" alt="Python">
   <img src="https://img.shields.io/badge/react-19-61DAFB.svg?logo=react&logoColor=white" alt="React">
-  <img src="https://img.shields.io/badge/version-v0.2.1-orange.svg" alt="此前公开版本基线">
-  <img src="https://img.shields.io/badge/status-unreleased%20web%20development-orange.svg" alt="尚未发布的网页开发版">
+  <a href="https://github.com/simonlin1212/vibe-astock/releases/tag/v1.0.0"><img src="https://img.shields.io/badge/version-v1.0.0-orange.svg" alt="v1.0.0"></a>
 </p>
 
 <p align="center">
@@ -22,7 +21,9 @@
   <a href="CHANGELOG.md">更新日志</a>
 </p>
 
-本文对应 **2026-09-09 开发版，尚未发布**。v0.2.1 徽章表示此前公开版本。下文的新功能以当前开发版源码为准。
+**V1.0.0：从 v0.2.1 升级而来，Agent 底座升级为 OpenAI Codex Harness。**
+
+统一 AI 接入、任务进度与证据核验，保留并完善短线复盘、盯盘、个股研究和历史回测。提供 Codex、Claude、WorkBuddy / CodeBuddy 订阅接入入口，以及 DeepSeek 等 API 配置；具体要求见[接入 AI](#接入-ai)。
 
 ---
 
@@ -34,7 +35,7 @@
 
 ## 产品定位
 
-Vibe-Astock 把 A 股短线研究中反复进行的工作放在一个本地网页里：查看盘面和昨日梯队，整理复盘证据，核对次日变化，再回看自己的记录与历史规则表现。
+Vibe AStock 把 A 股短线研究中反复进行的工作放在一个本地网页里：查看盘面和昨日梯队，整理复盘证据，核对次日变化，再回看自己的记录与历史规则表现。
 
 数据、程序计算、人工记录和 AI 解读分别呈现。行情与统计不依赖 AI 生成；AI 用于解释材料、对照不同观点和整理待验证条件。情绪分档是分析框架，不是客观事实，也不能由某一个指标直接推导交易结论。
 
@@ -71,9 +72,13 @@ Vibe-Astock 把 A 股短线研究中反复进行的工作放在一个本地网�
 
 采集依赖本机服务运行和数据源可用。夜间、午休或过期行情不能冒充当场的有效盘中快照。
 
+盘面数据中的限售解禁日历可查看未来或最近十个日历日，自选匹配在浏览器内完成。解禁数量使用本次解禁股数，占比使用总股本口径；接口失败会明确提示，不等同于没有解禁。数据源最多返回 500 条时会标明部分覆盖。
+
 ### 复盘：先确认日期、样本和证据
 
 选择目标交易日后生成复盘，可以选择尚未生成报告的日期。页面区分所选日期、当前报告的交易日和生成时间；不会将已有报告的日期冒充新选择。支持进度、取消和刷新后继续查看任务状态；生成失败保留旧稿，同日重新生成保存版本，补做较早日期不会把最新报告倒退。
+
+各路取数显示当前类别，单路等待上限为90秒，并受整场剩余时间约束；超时或取消会清理对应进程。AI生成耗时另计。
 
 复盘围绕情绪、资金、题材、龙虎榜和龙头跟踪整理五个分项，再汇总依据与待验证条件。新报告可展开「查看依据」；数字展示与已支持的比较由程序处理，AI 解释受引用校验约束。旧稿保留原样，不因升级自动获得新的校验结论。
 
@@ -109,7 +114,7 @@ Vibe-Astock 把 A 股短线研究中反复进行的工作放在一个本地网�
 
 ## 快速开始
 
-以下步骤适用于**已经包含本次开发版源码的目录**。当前不是已发布的大版本安装教程。
+从 [v1.0.0 Release](https://github.com/simonlin1212/vibe-astock/releases/tag/v1.0.0) 获取源码并解压，在项目目录中按下面步骤启动。已有用户请先备份本地数据，更新源码后重新准备依赖。
 
 环境要求：Python 3.10+（推荐 3.12）、Node.js 22+（含 npm）。首次准备环境需要联网下载依赖。
 
@@ -139,7 +144,7 @@ Windows 也在本机浏览器中使用；需要安装 Python（含 `py` 启动�
 
 源码更新前停止服务并备份下节列出的数据；保留本地修改，更新后重新运行 `sh scripts/setup` 与 `sh scripts/doctor`。日志位于 `.local/startup.log`，分享日志前检查个人信息。
 
-本地后台提供 macOS、Linux 和 Windows 启动路径，AI 接入不再按 Windows 平台拒绝。已完成 macOS 本机回归，以及 Windows Server 2025 原生环境的 34 项自动测试和捆绑引擎启动验证，覆盖进程清理、目录锁及合成接入流程。这不代表 Windows 10/11 用户实体电脑或 Linux 整套真机验收。各供应商仍须用自己的账户或密钥完成连接测试。
+本地后台提供 macOS、Linux 和 Windows 启动路径。Windows 原生安装、进程清理和网页重启的自动验收结果见[验证范围](#验证范围)；各供应商需使用自己的账户或密钥完成连接测试。
 
 ## 接入 AI
 
@@ -191,9 +196,9 @@ python scripts/manage.py start
 
 这些变量只影响从该终端启动的进程，需在每次启动前设置，或加入自己的启动脚本。macOS/Linux 可用 `export ASTOCK_DATA_HOME="/完整路径/业务数据"` 等对应变量。默认目录保持兼容；配置目录不会自动搬迁旧文件。迁移已有数据时，先停止服务、备份并将原目录内容复制到对应新目录，再设置变量启动核对；确认前保留原件。单独配置的 `VR_REPORTS_DIR` 也需同步调整。浏览器记录和仓库 `.local/` 运行日志不受这些变量影响。
 
-盘面数据中的限售解禁日历可查看未来或最近十个日历日，自选匹配在浏览器内完成。解禁数量使用本次解禁股数，占比使用总股本口径；接口失败会明确提示，不等同于没有解禁。数据源最多返回 500 条时会标明部分覆盖。
-
 ## 架构与开发
+
+使用官方 OpenAI Codex Harness 作为 Agent 底座，产品固定引擎版本，配套短线研究流程、受控证据工具、任务管理和引用校验。行情与回测计算由程序完成；AI 负责阅读材料、解释和追问。Claude 与 WorkBuddy / CodeBuddy 通过各自的本机 CLI 适配接入。
 
 ```text
 公开数据 → 原始归档与口径整理 → 确定性统计 / 历史模拟
@@ -217,9 +222,11 @@ python scripts/manage.py start
 
 ## 验证范围
 
-2026-09-09 开发版验证：后端三目录 **1237 项通过**，前端 **36 项通过**，类型检查与生产构建通过。仍有依赖弃用和构建体积提示。
+v1.0.0 发布检查：macOS 后端三目录 **1262 项通过、4 项 Windows 专项跳过**，前端 **36 项通过**，类型检查与生产构建通过。回归包含 README、网页页脚、包配置和 API 的产品版本一致性检查。
 
-已有部分真实日期复盘、日期切换、页面问答及 A/H/US 历史回测与独立复算记录。**完整真实交易日连续观察、全部供应商和平台的兼容验收、正式发布检查仍未完成**。离线回归、单次真跑和截图都不能替代这些验收。
+2026-09-10 源码基线 `9d84e0d` 的 Windows Server 2025 原生验收通过 **34 项运行契约和87项业务回归**，以及全新环境准备、体检、捆绑引擎启动、两次真实 HTTP 网页/API 启动和强制退出后的重启。[查看 Windows 验收记录](https://github.com/simonlin1212/vibe-astock/actions/runs/34417311929)。
+
+已有部分真实日期复盘、日期切换、页面问答和 A/H/US 历史回测与独立复算记录。上述结果不代表所有供应商、Windows 10/11 实体用户电脑、Linux 全流程或连续完整交易日均已验收；WorkBuddy / CodeBuddy 的真实业务验证仍未完成。保留既有依赖弃用与构建体积提示。
 
 在完成环境准备的仓库中可运行：
 

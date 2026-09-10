@@ -50,7 +50,9 @@ _ALLOWED_HOSTS = {"127.0.0.1", "localhost", "::1"} | {
     h.strip().lower() for h in os.environ.get("VIBE_ALLOW_HOSTS", "").split(",") if h.strip()
 }
 
-app = FastAPI(title="短线每日复盘")
+from vr.product_version import PRODUCT_NAME, PRODUCT_VERSION
+
+app = FastAPI(title=PRODUCT_NAME, version=PRODUCT_VERSION)
 
 # ---------------------------------------------------------------- 并入 VR 后端
 # 盘面数据 / 首板分析 / 盯盘 / 持仓股 / 自选股 / 个股数据 / 资讯雷达 这几个分栏的
@@ -294,7 +296,7 @@ app.include_router(review_agent_router(_get_review_agent, _VR_API_KEY))
 @app.get("/api/astock/health")
 def astock_health():
     """Launcher readiness: identifies this launch, exposes no user configuration."""
-    return {"service": "vibe-astock", "launch_id": os.environ.get("ASTOCK_LAUNCH_ID", ""),
+    return {"service": "vibe-astock", "version": PRODUCT_VERSION, "launch_id": os.environ.get("ASTOCK_LAUNCH_ID", ""),
             "ready": getattr(app.state, "review_agent", None) is not None
                      and os.path.isfile(os.path.join(_DIST, "index.html"))}
 

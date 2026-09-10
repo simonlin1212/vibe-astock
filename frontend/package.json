@@ -1,7 +1,7 @@
 {
-  "name": "vibe-research-frontend",
+  "name": "vibe-astock-frontend",
   "private": true,
-  "version": "0.1.3",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",

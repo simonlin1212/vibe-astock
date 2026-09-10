@@ -28,7 +28,9 @@ import myreports as mr
 import firstboard
 import watchtower
 
-app = FastAPI(title="Vibe-Research API", version="0.1.3")
+from product_version import PRODUCT_NAME, PRODUCT_VERSION
+
+app = FastAPI(title=PRODUCT_NAME, version=PRODUCT_VERSION)
 
 # 迁入的旧持仓仅供显式导入；本产品持仓来自交易日志，不启动旧持仓后台写入。
 
@@ -71,7 +73,7 @@ def _validate(code: str) -> str:
 
 @app.get("/api/health")
 def health():
-    return {"ok": True, "service": "vibe-research-api", "version": "0.1.3"}
+    return {"ok": True, "service": "vibe-astock", "version": PRODUCT_VERSION}
 
 
 class LLMConfig(BaseModel):

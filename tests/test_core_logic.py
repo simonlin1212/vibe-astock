@@ -7235,12 +7235,13 @@ class TestVersionIsConsistentEverywhere:
         return pathlib.Path(rel).read_text(encoding="utf-8")
 
     def test_frontend_version_matches_readme_badge(self):
+        import json
         import re
 
         layout = self._read("frontend/src/components/layout/Layout.tsx")
-        m = re.search(r'APP_VERSION\s*=\s*"v([\d.]+)"', layout)
-        assert m, "Layout.tsx 里找不到 APP_VERSION"
-        ui = m.group(1)
+        assert 'import product from "../../../../product.json"' in layout
+        assert 'const APP_VERSION = `v${product.version}`' in layout
+        ui = json.loads(self._read("product.json"))["version"]
 
         readme = self._read("README.md")
         b = re.search(r"badge/version-v([\d.]+)-", readme)
@@ -7254,3 +7255,30 @@ class TestVersionIsConsistentEverywhere:
         vs = {f: re.search(r"badge/version-v([\d.]+)-", self._read(f)).group(1)
               for f in ("README.md", "README_en.md")}
         assert len(set(vs.values())) == 1, f"中英文 README 版本号不一致：{vs}"
+
+    def test_product_packages_and_release_notes_match(self):
+        import json
+        version = json.loads(self._read("product.json"))["version"]
+        for folder in ("frontend", "runtime"):
+            package = json.loads(self._read(f"{folder}/package.json"))
+            lock = json.loads(self._read(f"{folder}/package-lock.json"))
+            assert package["version"] == lock["version"] == lock["packages"][""]["version"] == version
+            assert package["name"] == lock["name"] == lock["packages"][""]["name"]
+        assert f"## v{version}" in self._read("CHANGELOG.md")
+
+    def test_public_api_versions_match_product_identity(self):
+        import json
+        import server
+        from fastapi.testclient import TestClient
+        identity = json.loads(self._read("product.json"))
+        assert server.app.version == identity["version"]
+        assert server.app.title == identity["name"]
+        client = TestClient(server.app, base_url="http://127.0.0.1")
+        try:
+            for path in ("/api/astock/health", "/api/health"):
+                response = client.get(path)
+                assert response.status_code == 200, response.text
+                assert response.json()["version"] == identity["version"]
+                assert response.json()["service"] == "vibe-astock"
+        finally:
+            client.close()

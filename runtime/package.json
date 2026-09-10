@@ -1,7 +1,7 @@
 {
   "name": "vibe-astock-harness",
   "private": true,
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Pinned official Codex Harness for the bounded review Agent",
   "dependencies": {
     "@openai/codex": "0.153.4"
