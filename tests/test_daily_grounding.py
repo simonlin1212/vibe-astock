@@ -262,6 +262,15 @@ def test_real_worker_cross_dates_failure_restart_and_preserved_history(tmp_path,
     # Substitute the process transport boundary, preserving real freezing/validation.
     monkeypatch.setattr('review_agent.public_worker.fetch_public',
         lambda name, args, *a, **kw: json.loads(json.dumps(inputs(date=args[0])[name])))
+    # Post-review capture starts its own interpreter, outside _no_network's patch.
+    # Keep this report/history test offline; capture has separate worker tests.
+    captured_dates = []
+    def capture(date, check=None):
+        if check is not None:
+            check()
+        captured_dates.append(date)
+        return {"capture": {"ok": True}}
+    monkeypatch.setattr('review_agent.post_review.capture_bounded', capture)
     engine = FixtureEngine()
     manager = Manager(Store(tmp_path / "state"), tmp_path / "reviews", engine)
     source = {"provider": "codex-private", "model": "test"}
@@ -287,6 +296,7 @@ def test_real_worker_cross_dates_failure_restart_and_preserved_history(tmp_path,
         assert engine.calls == 19  # six successful stages per run + seven on bounded format failure
         engine.bad = False
         assert run(DATE, "d")["status"] == "complete"
+        assert captured_dates == [DATE, "2026-09-03", DATE]
         versions = list((tmp_path / "reviews/_versions").glob("*.json"))
         assert any(json.loads(p.read_text())["job_id"] == "a"*32 for p in versions)
     finally:
