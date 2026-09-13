@@ -94,7 +94,7 @@ export function AgentAccess({initialProvider,onSaved,onBusyChange}:{initialProvi
  }
  function choose(value:string){
   const next=draftFor(value);
-  setCatalog(null);setSubscription(null);setProvider(next.provider);setModel(next.model);setBaseURL(next.baseURL);setApiKey('');setError('');setNotice('');
+  setCatalog(null);setSubscription(null);setProvider(next.provider);setModel(next.model);setBaseURL(next.baseURL);setApiKey(next.apiKey);setError('');setNotice('');
  }
  return <section aria-label="复盘与追问 AI 接入" className="space-y-4 rounded-xl border border-border bg-card p-4 sm:p-6">
   <div><h2 className="font-semibold">接入 AI</h2><p className="mt-1 text-sm leading-6 text-muted-foreground">选择订阅或模型 API，首页聊天、复盘和研究共用这份连接。</p></div>

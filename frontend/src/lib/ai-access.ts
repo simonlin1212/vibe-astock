@@ -3,6 +3,7 @@ type Connection = { provider: string; model: string; baseURL: string; apiKey: st
 export type AccessDraft = Connection;
 const bailian = 'https://{WorkspaceId}.cn-beijing.maas.aliyuncs.com/compatible-mode/v1';
 const hosted = '通过阿里云百炼接入，请使用百炼工作空间的地址和密钥。';
+const ccSwitch = 'http://127.0.0.1:15721/v1';
 export const SUBSCRIPTION_PROVIDERS = [
   { id: 'codex-private', name: 'Codex 订阅', detail: '使用 ChatGPT 账户登录产品专用空间' },
   { id: 'claude', name: 'Claude 订阅', detail: '使用本机 Claude Code 登录' },
@@ -14,6 +15,8 @@ const preset = (id: string, name: string, baseURL: string, models: string[], det
 export const API_PROVIDERS = [
   preset('deepseek', 'DeepSeek', 'https://api.deepseek.com', ['deepseek-v4-flash', 'deepseek-v4-pro']),
   preset('mimo', 'MiMo', 'https://token-plan-cn.xiaomimimo.com/v1', ['mimo-v2.5', 'mimo-v2.5-pro']),
+  preset('cc-switch', 'CC Switch 本机路由', ccSwitch, [],
+    'CC Switch 需在本机开启 Responses 路由；API 密钥通常填 PROXY_MANAGED，模型可按路由自行填写。'),
   preset('glm', '智谱 GLM', bailian, ['glm-5.2'], hosted),
   preset('kimi', 'Kimi', bailian, ['kimi-k2.7-code'], hosted),
   preset('qwen', '通义千问', bailian, ['qwen3.8-max'], hosted),
@@ -46,7 +49,8 @@ export function providerFor(connection: Connection): string {
 export function draftFor(provider: string, saved?: Connection | null): AccessDraft {
   if (saved && providerFor(saved) === provider) return { provider, model: saved.model, baseURL: saved.baseURL, apiKey: isSubscription(provider) ? '' : saved.apiKey };
   const entry = API_PROVIDERS.find(p => p.id === provider);
-  return { provider, model: entry?.models[0]?.id ?? (['claude', 'codebuddy'].includes(provider) ? 'default' : ''), baseURL: entry?.baseURL ?? '', apiKey: '' };
+  return { provider, model: entry?.models[0]?.id ?? (['claude', 'codebuddy'].includes(provider) ? 'default' : ''),
+           baseURL: entry?.baseURL ?? '', apiKey: entry?.id === 'cc-switch' ? 'PROXY_MANAGED' : '' };
 }
 export function connectionFor(draft: AccessDraft): Connection {
   if (isSubscription(draft.provider)) return { provider: draft.provider, model: draft.model.trim(), baseURL: '', apiKey: '' };
@@ -65,8 +69,11 @@ export function draftError(draft: AccessDraft): string {
   if (/[{}<>]|%7b|%7d|%3c|%3e/i.test(base)) return '请将地址中的 WorkspaceId 等占位符替换为实际工作空间信息';
   try {
     const url = new URL(base);
-    if (!/^https:\/\//.test(base) || url.protocol !== 'https:' || url.username || url.password || url.search || url.hash || url.port || /\s|\\/.test(base)) throw new Error();
-  } catch { return '请填写 HTTPS API 基础地址，不含账号、查询参数或非标准端口'; }
+    const localResponsesRoute = base === ccSwitch;
+    const secureResponsesRoute = /^https:\/\//.test(base) && url.protocol === 'https:' && !url.port;
+    if (url.username || url.password || url.search || url.hash || /\s|\\/.test(base) ||
+        (!localResponsesRoute && !secureResponsesRoute)) throw new Error();
+  } catch { return '请填写 HTTPS API 基础地址，或本机 CC Switch Responses 路由'; }
   const key = draft.apiKey.trim();
   if (!key || key.length > 1024 || /\s/.test(key)) return '请填写该服务商的有效 API 密钥';
   return '';
