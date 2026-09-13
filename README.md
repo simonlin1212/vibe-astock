@@ -157,6 +157,7 @@ Windows 也在本机浏览器中使用；需要安装 Python（含 `py` 启动�
 | WorkBuddy / CodeBuddy | 使用本机 CLI 登录；本次仅实测 macOS WorkBuddy 内置 CodeBuddy CLI 2.137.1 的连接、受控工具、普通对话与单日完整复盘流程 |
 | OpenAI API | 使用用户自己的配置；不以订阅测试代替 API 实测，尚未完成全部兼容验收 |
 | DeepSeek / MiMo | 提供模型与地址预设，支持自行修改；使用自己的密钥测试成功后保存 |
+| CC Switch 本机路由 | 仅精确放行 `http://127.0.0.1:15721/v1`；需本机路由支持流式 Responses 与工具调用，模型由用户按实际路由填写，密钥通常填 `PROXY_MANAGED` |
 | 智谱 GLM / Kimi / 通义千问 | 提供阿里云百炼预设，需要填写工作空间地址和百炼密钥；须以实际连接测试为准 |
 | 硅基流动 / MiniMax / OpenRouter / Groq / Together / 自定义 | 提供可编辑的地址与模型配置；预设不代表兼容性已验证，端点必须支持 Responses API 与工具调用 |
 
