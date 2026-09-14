@@ -44,5 +44,9 @@ test('incomplete or unsafe API fields cannot start a paid probe', () => {
     assert.ok(draftError({...d,baseURL}));
   }
   assert.equal(draftError({...d,baseURL:'https://mine.cn-beijing.maas.aliyuncs.com/compatible-mode/v1'}),'');
+  // 本地回环/内网 http 放行(自托管模型网关 cc-switch 127.0.0.1:15721、局域网 vLLM 192.168.x:8000、localhost)
+  assert.equal(draftError({...d,baseURL:'http://127.0.0.1:15721/v1'}),'');
+  assert.equal(draftError({...d,baseURL:'http://192.168.250.10:8000/v1'}),'');
+  assert.equal(draftError({...d,baseURL:'http://localhost/v1'}),'');
   assert.ok(draftError({...draftFor('deepseek'),apiKey:''}));
 });
