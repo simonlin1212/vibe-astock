@@ -1,4 +1,4 @@
-import { randomId } from "@/lib/random-id";
+import { randomId, hexHash } from "./random-id";
 // Every product AI entry reads the same explicitly tested connection.
 import { agentRequest, AgentRequestError, loadAgentConnection } from './agent-api';
 import { readMode } from './workspace/state';
@@ -33,8 +33,7 @@ export async function chatStream(messages: ChatMsg[], context: string, handlers:
   // Recover by source + visible material + current question, even when a caller
   // retained an optimistic user/error bubble after transport failure.
   const identity = {session:handlers.sessionId ?? "single-question", question:latest.content, context, allow_tools:input.allow_tools, llm};
-  const hash = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(JSON.stringify(identity)))))
-    .map(b => b.toString(16).padStart(2,'0')).join('');
+  const hash = hexHash(JSON.stringify(identity));
   const pendingKey = 'astock-page-chat-' + hash;
   let saved: string | null;
   try { saved = sessionStorage.getItem(pendingKey); } catch { throw new ApiError('浏览器禁止会话存储，本次尚未发送 AI 请求；请允许存储后重试', 400); }
