@@ -261,7 +261,13 @@ def create_router(manager_source: Manager | Callable[[], Manager], access_key: s
     async def guard(request: Request):
         # Do not inherit the older routes' Origin-only guard: validate Host too
         # to reject DNS rebinding, including on GET conversation responses.
-        allowed = {"localhost", "127.0.0.1", "::1"}
+        # Align with server.py's outer _vr_guard, which reads VIBE_ALLOW_HOSTS:
+        # when the user browses the UI over a LAN IP (VIBE_ALLOW_HOSTS set in .env),
+        # this router must accept the same Host, or every /access poll 403s and
+        # the settings page spins on "连接状态读取失败" regardless of the model config.
+        allowed = {"localhost", "127.0.0.1", "::1"} | {
+            h.strip().lower() for h in os.environ.get("VIBE_ALLOW_HOSTS", "").split(",") if h.strip()
+        }
         if (request.url.hostname or "").lower() not in allowed:
             raise HTTPException(403, "复盘 Agent 仅支持本机访问")
         for header in ("origin", "referer"):
