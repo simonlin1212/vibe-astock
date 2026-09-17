@@ -184,7 +184,14 @@ def test_credentials_only_in_engine_env_and_config_blocks_escape(tmp_path, monke
     assert tomllib.loads("x=" + toml({"quoted": 'a"b\\c', "flags": [True, False]}))["x"]["quoted"] == 'a"b\\c'
     env = engine_environment(tmp_path, key)
     assert env["ASTOCK_MODEL_KEY"] == key and "PRIVATE_OTHER_API_KEY" not in env
-    for url in ("http://127.0.0.1/v1", "https://api.openai.com.evil.invalid/v1", "https://user:pass@api.openai.com/v1"):
+    # 本地回环/内网 http 放行(自托管模型网关 cc-switch 127.0.0.1:15721、局域网 vLLM 192.168.x:8000 无 TLS)
+    for url in ("http://127.0.0.1/v1", "http://127.0.0.1:15721/v1", "http://192.168.250.10:8000/v1", "http://localhost/v1"):
+        src, _ = connection({"model": "x", "apiKey": key, "baseURL": url})
+        assert src["baseURL"] == url.rstrip("/"), url
+    # 公网地址仍强制 https 标准端口 + 云白名单;带凭据/伪装域名一律拒(SSRF 边界不松)
+    for url in ("http://api.openai.com/v1", "http://api.openai.com:8080/v1",
+                "https://api.openai.com.evil.invalid/v1", "https://user:pass@api.openai.com/v1",
+                "https://example.com:8443/v1"):
         with pytest.raises(EvidenceError):
             connection({"model": "x", "apiKey": key, "baseURL": url})
 

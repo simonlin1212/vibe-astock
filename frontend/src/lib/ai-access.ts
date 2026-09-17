@@ -58,15 +58,35 @@ export function sourceLabel(connection: Connection): string {
   const provider = providerFor(connection);
   return SUBSCRIPTION_PROVIDERS.find(p => p.id === provider)?.name ?? `${API_PROVIDERS.find(p => p.id === provider)?.name ?? '自定义'} API`;
 }
+// 本地回环 / 内网(RFC1918)host 判定 —— 与后端 runtime._is_private_ip 同口径。
+// 自托管模型网关(cc-switch 127.0.0.1:15721)、局域网 vLLM(192.168.x:8000)无 TLS,
+// 对这些 host 放行 http 任意端口;公网 host 仍强制 https 标准端口,SSRF 边界不松。
+function isLocalOrPrivateHost(hostname: string | null): boolean {
+  if (!hostname) return false;
+  const h = hostname.toLowerCase();
+  if (h === 'localhost' || h === '::1' || h === '[::1]') return true;
+  if (/^127\./.test(h)) return true;                // 127.0.0.0/8 loopback
+  if (/^10\./.test(h)) return true;                 // 10.0.0.0/8
+  if (/^192\.168\./.test(h)) return true;           // 192.168.0.0/16
+  if (/^172\.(1[6-9]|2\d|3[01])\./.test(h)) return true; // 172.16.0.0/12
+  return false;
+}
 export function draftError(draft: AccessDraft): string {
   if (!/^[A-Za-z0-9][A-Za-z0-9._/-]{0,99}$/.test(draft.model.trim())) return '请填写有效的模型标识';
   if (isSubscription(draft.provider)) return '';
   const base = draft.baseURL.trim();
   if (/[{}<>]|%7b|%7d|%3c|%3e/i.test(base)) return '请将地址中的 WorkspaceId 等占位符替换为实际工作空间信息';
-  try {
-    const url = new URL(base);
-    if (!/^https:\/\//.test(base) || url.protocol !== 'https:' || url.username || url.password || url.search || url.hash || url.port || /\s|\\/.test(base)) throw new Error();
-  } catch { return '请填写 HTTPS API 基础地址，不含账号、查询参数或非标准端口'; }
+  if (/\s|\\/.test(base)) return 'API 地址不能包含空白或反斜杠';
+  let url: URL;
+  try { url = new URL(base); } catch { return '请填写有效的 API 基础地址(含协议)'; }
+  if (url.username || url.password || url.search || url.hash) return 'API 地址不能含账号或查询参数';
+  // 强制原文以 http:// 或 https:// 开头 —— 拦截 new URL 会洗白的畸形(https:/x、https:x)
+  if (!base.startsWith('https://') && !base.startsWith('http://')) return 'API 地址需以 http:// 或 https:// 开头';
+  if (isLocalOrPrivateHost(url.hostname)) {
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return '本地/内网地址请使用 http 或 https';
+  } else {
+    if (url.protocol !== 'https:' || url.port) return '公网 API 地址须为 HTTPS 标准端口;本地/内网模型网关可用 http';
+  }
   const key = draft.apiKey.trim();
   if (!key || key.length > 1024 || /\s/.test(key)) return '请填写该服务商的有效 API 密钥';
   return '';

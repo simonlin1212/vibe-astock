@@ -15,6 +15,7 @@ import subprocess
 import sys
 import threading
 import time
+import ipaddress
 from collections import deque
 from pathlib import Path
 
@@ -84,6 +85,16 @@ accepted=true 后立即结束本轮，最终聊天文字只说“分析完成”
 只解释证据直接支持的变化，计数升降不能推出盘中时点、约束松紧、资金动机或因果机制；缺少对应资料时明确不作判断。"""
 
 
+def _is_private_ip(host: str) -> bool:
+    """hostname 是 RFC1918/内网 IP 字面量才 True;域名/公网 IP/解析失败一律 False。
+    只认 IP 字面量 —— 域名即使是内网服务也不放 http(防 DNS 指向任意地址绕过)。"""
+    try:
+        ip = ipaddress.ip_address(host)
+    except ValueError:
+        return False
+    return ip.is_private or ip.is_loopback or ip.is_link_local
+
+
 def connection(llm: dict) -> tuple[dict, str]:
     """Return public identity separately from the ephemeral credential."""
     if not isinstance(llm, dict):
@@ -103,11 +114,20 @@ def connection(llm: dict) -> tuple[dict, str]:
         raise EvidenceError("请将 API 地址中的 WorkspaceId 等占位符替换为实际工作空间信息")
     try:
         url = urlparse(base)
-        valid = url.scheme == "https" and url.hostname and not url.username and not url.password and not url.query and not url.fragment and url.port in (None, 443)
+        host = (url.hostname or "").lower()
     except ValueError:
+        url, host = None, ""
+    # 本地回环 / 内网(RFC1918)地址放行 http 任意端口 —— 自托管模型网关(cc-switch 127.0.0.1:15721)、
+    # 局域网 vLLM(192.168.x:8000)没有 TLS。公网地址仍强制 https + 标准端口,SSRF 边界不松。
+    local_http = url is not None and (host in ("127.0.0.1", "localhost", "::1") or _is_private_ip(host))
+    if url is not None and local_http:
+        valid = (url.scheme in ("http", "https")) and host and not url.username and not url.password and not url.query and not url.fragment
+    elif url is not None:
+        valid = url.scheme == "https" and host and not url.username and not url.password and not url.query and not url.fragment and url.port in (None, 443)
+    else:
         valid = False
-    if not valid or (provider != "api-compatible" and base.rstrip("/") not in allowed):
-        raise EvidenceError("请填写 HTTPS Responses API 地址；不支持带凭据、查询参数或非标准端口的地址")
+    if not valid or (provider != "api-compatible" and not local_http and base.rstrip("/") not in allowed):
+        raise EvidenceError("API 地址须为 https(公网)或 http(仅本地回环/内网);不支持带凭据、查询参数的地址")
     base = base.rstrip("/")
     key = llm.get("apiKey", "")
     if not isinstance(key, str) or not key.strip() or len(key) > 1024 or any(c.isspace() for c in key):
