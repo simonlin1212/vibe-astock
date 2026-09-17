@@ -84,6 +84,9 @@ accepted=true 后立即结束本轮，最终聊天文字只说“分析完成”
 只解释证据直接支持的变化，计数升降不能推出盘中时点、约束松紧、资金动机或因果机制；缺少对应资料时明确不作判断。"""
 
 
+CC_SWITCH_RESPONSES_URL = "http://127.0.0.1:15721/v1"
+
+
 def connection(llm: dict) -> tuple[dict, str]:
     """Return public identity separately from the ephemeral credential."""
     if not isinstance(llm, dict):
@@ -102,13 +105,15 @@ def connection(llm: dict) -> tuple[dict, str]:
     if re.search(r"[{}<>]|%7b|%7d|%3c|%3e", base, re.IGNORECASE):
         raise EvidenceError("请将 API 地址中的 WorkspaceId 等占位符替换为实际工作空间信息")
     try:
+        base = base.rstrip("/")
         url = urlparse(base)
-        valid = url.scheme == "https" and url.hostname and not url.username and not url.password and not url.query and not url.fragment and url.port in (None, 443)
+        local_responses = base == CC_SWITCH_RESPONSES_URL
+        valid = url.hostname and not url.username and not url.password and not url.query and not url.fragment and (
+            local_responses or (url.scheme == "https" and url.port in (None, 443)))
     except ValueError:
         valid = False
     if not valid or (provider != "api-compatible" and base.rstrip("/") not in allowed):
-        raise EvidenceError("请填写 HTTPS Responses API 地址；不支持带凭据、查询参数或非标准端口的地址")
-    base = base.rstrip("/")
+        raise EvidenceError("请填写 HTTPS Responses API 地址，或本机 CC Switch Responses 路由；不支持带凭据、查询参数或其它非标准端口地址")
     key = llm.get("apiKey", "")
     if not isinstance(key, str) or not key.strip() or len(key) > 1024 or any(c.isspace() for c in key):
         raise EvidenceError("API 密钥无效，请检查接入 AI 设置")
