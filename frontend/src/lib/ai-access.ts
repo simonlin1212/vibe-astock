@@ -63,12 +63,17 @@ export function sourceLabel(connection: Connection): string {
   const provider = providerFor(connection);
   return SUBSCRIPTION_PROVIDERS.find(p => p.id === provider)?.name ?? `${API_PROVIDERS.find(p => p.id === provider)?.name ?? '自定义'} API`;
 }
-// 本地回环 / 内网(RFC1918)host 判定 —— 只为在设置页即时给提示,**真正的边界在后端**
-// runtime.connection(),那边是权威,这里判错不影响安全。
-// 两边不是同一口径,也做不到同一口径:这里拿到的是 new URL 规范化后的 hostname,
-// 后端 urlparse 看到的是原串(例如 "127.1" 在这里已经变成 127.0.0.1、后端则不认),
-// 所以少数地址会在这里过、被后端拒,用户看到的是后端那句话。反过来后端比这里宽
-// (IPv6 唯一本地地址 fd00::/8 后端收、这里不收),那一侧只是提示保守,不会放行更多。
+// 本地回环 / 内网(RFC1918)host 判定 —— 安全边界在后端 runtime.connection(),那边是权威,
+// 这里判宽了也放行不了更多。但**这里判窄了会直接挡住用户**:AgentAccess.tsx 的
+// 「测试连接并保存」按钮是 `disabled={busy||!!validation||…}`,这个函数返回 false 会让
+// 按钮点不动,不是"提示保守"而是存不了。所以放行的网段要和后端 _LOCAL_NETWORKS 对齐。
+// 两边仍有两处已知不一致,都记在这里:
+//   1. 这里拿到的是 new URL 规范化后的 hostname,后端 urlparse 看到的是原串
+//      (例如 "127.1" 在这里已变成 127.0.0.1、后端则不认),这类地址在这里过、被后端拒,
+//      用户看到的是后端那句话 —— 不影响能不能点。
+//   2. IPv6 唯一本地地址 fc00::/7(fd00::1 这类)后端收、这里不收,所以 ULA 网关存不了。
+//      在前端正确判 fc00::/7 要按首个 hextet 是不是 4 位的 fcxx/fdxx 来写,写错的代价
+//      和收益不成比例,暂不做;碰到再改。
 // 自托管模型网关(cc-switch 127.0.0.1:15721)、局域网 vLLM(192.168.x:8000)无 TLS,
 // 对这些 host 放行 http 任意端口;公网 host 仍强制 https 标准端口。
 const IPV4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/;
@@ -79,10 +84,13 @@ function isLocalOrPrivateHost(hostname: string | null): boolean {
   // 必须整串匹配:前缀匹配会把 192.168.1.1.evil.com 这种公网域名当成内网。
   const parts = IPV4.exec(h)?.slice(1).map(Number);
   if (!parts || parts.some(n => n > 255)) return false;
-  const [a, b] = parts;
+  const [a, b, c, d] = parts;
   if (a === 127) return true;                   // 127.0.0.0/8 loopback
   if (a === 10) return true;                    // 10.0.0.0/8
   if (a === 192 && b === 168) return true;      // 192.168.0.0/16
+  // 未指定地址,后端同样只放这一个:网关监听所有网卡时启动日志打印的就是 http://0.0.0.0:<端口>。
+  // 0.0.0.0/8 的其余部分(0.0.0.1 等)不放。
+  if (a === 0) return b === 0 && c === 0 && d === 0;
   return a === 172 && b >= 16 && b <= 31;       // 172.16.0.0/12
 }
 export function draftError(draft: AccessDraft): string {

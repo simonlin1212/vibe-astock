@@ -11,7 +11,7 @@
   <img src="https://img.shields.io/badge/license-Apache--2.0-blue.svg" alt="License">
   <img src="https://img.shields.io/badge/python-3.12-3776AB.svg?logo=python&logoColor=white" alt="Python">
   <img src="https://img.shields.io/badge/react-19-61DAFB.svg?logo=react&logoColor=white" alt="React">
-  <a href="https://github.com/simonlin1212/vibe-astock/releases/tag/v1.1.2"><img src="https://img.shields.io/badge/version-v1.1.2-orange.svg" alt="v1.1.2"></a>
+  <a href="https://github.com/simonlin1212/vibe-astock/releases/tag/v1.1.3"><img src="https://img.shields.io/badge/version-v1.1.3-orange.svg" alt="v1.1.3"></a>
 </p>
 
 <p align="center">
@@ -21,7 +21,7 @@
   <a href="CHANGELOG.md">Changelog</a>
 </p>
 
-**V1.1.2 tightens address validation for self-hosted gateways so that every equivalent spelling of a cloud instance metadata address is rejected at the address-validation layer, and turns a malformed port into a message rather than a server error.**
+**V1.1.3 fixes a v1.1.2 regression so that `http://0.0.0.0:<port>` — the address self-hosted gateways print at startup — is accepted again, and points the malformed-port message at the port itself.**
 
 Shared AI connections, task progress, and evidence validation support market reviews, market watch, stock research, and historical backtesting. Connection options include Codex, Claude, WorkBuddy / CodeBuddy subscriptions, and API configurations such as DeepSeek. See [Connect AI](#connect-ai) for requirements and verification status.
 
@@ -108,7 +108,7 @@ The journal supports grouped self-review using market context, recorded methods,
 
 ## Quick start
 
-Get and extract the source from the [v1.1.2 Release](https://github.com/simonlin1212/vibe-astock/releases/tag/v1.1.2), then follow these steps in the project directory. Existing users should back up local data before updating the source and preparing dependencies again.
+Get and extract the source from the [v1.1.3 Release](https://github.com/simonlin1212/vibe-astock/releases/tag/v1.1.3), then follow these steps in the project directory. Existing users should back up local data before updating the source and preparing dependencies again.
 
 Requirements: Python 3.10+ (3.12 recommended), Node.js 22+ including npm. Initial setup requires internet access to download dependencies.
 
@@ -153,7 +153,7 @@ Web AI entry points share the source and model tested and saved in Connect AI. A
 | WorkBuddy / CodeBuddy | Uses local CLI login. This test covered only CodeBuddy CLI 2.137.1 bundled with WorkBuddy on macOS: connection, bounded tools, ordinary chat, and a complete single-day review workflow. |
 | OpenAI API | Uses the user's own configuration. Subscription tests do not substitute for API validation; the full compatibility assessment is incomplete |
 | DeepSeek / MiMo | Editable model and endpoint presets; use your own key and pass the connection test before saving |
-| CC Switch local route / self-hosted gateway | Preset `http://127.0.0.1:15721/v1`; the key is usually `PROXY_MANAGED` and the model follows your route's actual configuration. Loopback and private (RFC1918) addresses may use http on any port; public addresses still require HTTPS on the standard port. The route must support streaming Responses and tool calling |
+| CC Switch local route / self-hosted gateway | Preset `http://127.0.0.1:15721/v1`; the key is usually `PROXY_MANAGED` and the model follows your route's actual configuration. Loopback, private (RFC1918), the unspecified address `0.0.0.0`, and IPv6 unique local addresses may use http on any port; public addresses still require HTTPS on the standard port. The route must support streaming Responses and tool calling |
 | GLM / Kimi / Qwen | Alibaba Cloud Bailian presets require the workspace endpoint and a Bailian key; availability must be tested with your account |
 | SiliconFlow / MiniMax / OpenRouter / Groq / Together / custom | Editable endpoint and model settings; presets do not establish verified compatibility. Endpoints must support the Responses API and tool calling |
 
@@ -219,7 +219,7 @@ Provenance and licensing for the event-probability and backtesting code are reco
 
 ## Validation scope
 
-v1.1.2 release checks: **1,286 backend tests passed on macOS, with four Windows-specific tests skipped**; **41 frontend tests**, type checking, and a production build passed. Regression checks cover product-version consistency across the READMEs, web footer, package manifests, and APIs.
+v1.1.3 release checks: **1,287 backend tests passed on macOS, with four Windows-specific tests skipped**; **41 frontend tests**, type checking, and a production build passed. Regression checks cover product-version consistency across the READMEs, web footer, package manifests, and APIs.
 
 For source baseline `9d84e0d` on September 10, 2026, native Windows Server 2025 acceptance passed **34 runtime contracts and 87 business regression tests**, plus fresh setup, diagnostics, bundled-engine startup, two real HTTP web/API launches, and restart after forced termination. [Windows acceptance record](https://github.com/simonlin1212/vibe-astock/actions/runs/34417311929).
 

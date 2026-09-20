@@ -219,7 +219,7 @@ def test_cloud_metadata_endpoints_stay_blocked_after_allowing_private_http():
         "http://[::ffff:169.254.169.254]/latest/meta-data/": "IPv4-mapped 写法的元数据地址",
         "http://[::ffff:a9fe:a9fe]/v1": "同上，十六进制写法",
         "http://[2002:a9fe:a9fe::1]/v1": "6to4 写法，内嵌 169.254.169.254",
-        "http://0.0.0.0:15721/v1": "0.0.0.0/8，is_private 为 True 但不是网关地址",
+        "http://0.0.0.1:15721/v1": "0.0.0.0/8 里除未指定地址以外的部分",
         "http://240.0.0.1/v1": "240.0.0.0/4 保留段",
         "http://203.0.113.9/v1": "TEST-NET-3 文档段",
         "http://198.18.0.1/v1": "198.18.0.0/15 基准测试段",
@@ -244,6 +244,18 @@ def test_cloud_metadata_endpoints_stay_blocked_after_allowing_private_http():
         src, _ = connection({"model": "x", "apiKey": key, "baseURL": url})
         assert src["baseURL"] == url.rstrip("/"), url
 
+    # 未指定地址 0.0.0.0/32 单独一条：放行，但**存下来的是 127.0.0.1**。
+    # 存原样会把两个坑留给用户 —— 它不在系统代理的默认排除名单里（实测
+    # proxy_bypass("127.0.0.1")=True、("0.0.0.0")=False，设了 HTTP_PROXY 时
+    # Authorization 会发往代理），且 Windows 的 connect() 不接受 INADDR_ANY 作为
+    # 目的地址。归一化不损失可达目标：本机实测两者作为目的地址等价。
+    for url, want in (
+        ("http://0.0.0.0:8000/v1", "http://127.0.0.1:8000/v1"),
+        ("http://0.0.0.0/v1", "http://127.0.0.1/v1"),
+    ):
+        src, _ = connection({"model": "x", "apiKey": key, "baseURL": url})
+        assert src["baseURL"] == want, (url, src["baseURL"])
+
 
 def test_malformed_port_is_a_rejection_not_a_crash():
     """端口写错要得到 EvidenceError(前端显示成一句话)，不能抛 ValueError 变成 500。
@@ -264,8 +276,11 @@ def test_malformed_port_is_a_rejection_not_a_crash():
         "http://127.0.0.1:abc/v1",        # 回环，端口非数字
         "http://127.0.0.1:169.254.169.254/v1",  # 把元数据地址塞进端口位
     ):
-        with pytest.raises(EvidenceError):
+        with pytest.raises(EvidenceError) as caught:
             connection({"model": "x", "apiKey": key, "baseURL": url, "provider": "api-compatible"})
+        # 文案必须指向端口。共用那句"地址须为 https(公网)或 http(仅本地回环/内网)"时，
+        # 用户改半天协议也改不对，因为错的根本不是协议。
+        assert "端口" in str(caught.value), (url, str(caught.value))
 
     # 阴性对照：合法端口必须仍然放行，否则上面五条可能只是"端口一律拒绝"。
     for url in ("https://example.com:443/v1", "http://127.0.0.1:15721/v1"):

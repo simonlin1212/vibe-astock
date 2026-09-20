@@ -1298,6 +1298,30 @@ class TestNoRouteShadowing:
         assert len(paths)==len(set(paths)), "合并后的实际路由不能被同方法旧路由遮蔽"
         assert sum(path=="/api/chat" and method=="POST" for path,method in paths)==1
 
+    def test_vr_chat_route_must_stay_unmerged(self):
+        """`/api/chat` 必须由本仓库提供，不能让 `vr/app.py` 那条并进来。
+
+        `_merge_vr_routes()` 里显式跳过了它。这不只是"我们有自己的实现"——
+        `vr/chat.py` 有一份独立的 SSRF 守卫（`_check_base_url`），用的是黑名单
+        （只列 169.254.0.0/16 与 fe80::/10），而 `::ffff:169.254.169.254` 与
+        6to4 的 `2002:a9fe:a9fe::` 在任何 Python 版本上都不落在这两段里 ——
+        也就是说它漏的正是 `review_agent/runtime.py` 用白名单堵住的那类写法。
+        把这行跳过去掉，等于给用户自带的 baseURL 开一条绕过白名单的侧门。
+        真要启用 `vr/` 那条路由，先把它的守卫改成同一份白名单。
+        """
+        import sys
+
+        import server
+
+        sys.path.insert(0, "vr")
+        import app as vr_app  # vr/app.py，不是本仓库的模块
+
+        # 判据挂在**端点身份**上，不挂路径：`_merge_vr_routes()` 的跳过条件写的是
+        # 字面量 `path == "/api/chat"`，上游一旦改路由名（如 /api/chat/stream），
+        # 跳过就失配、弱守卫重新可达，而按路径判的断言此时照绿（已变异实测）。
+        endpoints = {getattr(r, "endpoint", None) for r in server.app.routes}
+        assert vr_app.chat not in endpoints, "vr/app.py 的 chat 处理函数被并进来了"
+
     def test_spa_fallback_is_registered_last(self):
         """SPA 兜底 `/{full_path:path}` 必须是最后注册的 —— 它会吃掉之后的一切。"""
         import server

@@ -71,6 +71,11 @@ test('incomplete or unsafe API fields cannot start a paid probe', () => {
   assert.equal(draftError({...d,baseURL:'http://127.0.0.1:15721/v1'}),'');
   assert.equal(draftError({...d,baseURL:'http://192.168.250.10:8000/v1'}),'');
   assert.equal(draftError({...d,baseURL:'http://localhost/v1'}),'');
+  // 未指定地址必须能存:后端 v1.1.3 起放行它,这里判窄了「测试连接并保存」按钮就是灰的,
+  // 而网关监听所有网卡时启动日志打印的正是 http://0.0.0.0:<端口>。
+  assert.equal(draftError({...d,baseURL:'http://0.0.0.0:8000/v1'}),'');
+  // 阴性对照:只放 0.0.0.0 这一个,0.0.0.0/8 的其余部分仍须挡住(与后端白名单同口径)。
+  assert.ok(draftError({...d,baseURL:'http://0.0.0.1:8000/v1'}),'0.0.0.1');
   // 内网前缀打头的**域名**不是内网:这些 host 会解析到公网,http 必须挡住。
   // 判据挂在"整串是不是那几段 IPv4",不是"以 192.168. 开头"。
   for (const baseURL of ['http://192.168.1.1.evil.com/v1','http://10.foo.example.com/v1','http://127.0.0.1.evil.com/v1'])

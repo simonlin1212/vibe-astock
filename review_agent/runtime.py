@@ -94,8 +94,12 @@ accepted=true 后立即结束本轮，最终聊天文字只说“分析完成”
 #   3.12.13 ::ffff:169.254.169.254 is_link_local=True      | 2002:a9fe:a9fe:: is_private=True(漏)
 # 即按属性判断时每个版本都至少漏一种写法,靠"再排除一段"追不完;只有白名单能一次
 # 说清放行的是哪几段,并且不同版本行为一致(上面两个解释器逐条实测相同)。
+# 0.0.0.0/32 单独列出:它是"未指定地址",作为目的地址等同于本机,而网关监听所有网卡时
+# 启动日志打印的正是 http://0.0.0.0:<端口>,用户会直接复制过来。只放这一个地址,
+# 0.0.0.0/8 的其余部分不放;放行后在下面归一化成 127.0.0.1。
 _LOCAL_NETWORKS = tuple(ipaddress.ip_network(n) for n in (
-    "127.0.0.0/8", "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "::1/128", "fc00::/7",
+    "127.0.0.0/8", "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16",
+    "0.0.0.0/32", "::1/128", "fc00::/7",
 ))
 
 
@@ -121,7 +125,7 @@ def connection(llm: dict) -> tuple[dict, str]:
         return {"provider": provider, "model": model}, ""
     base = llm.get("baseURL", "")
     allowed = {"https://api.openai.com/v1": "openai", "https://token-plan-cn.xiaomimimo.com/v1": "mimo"}
-    from urllib.parse import urlparse
+    from urllib.parse import urlparse, urlunparse
     if not isinstance(base, str):
         raise EvidenceError("API 地址无效")
     if re.search(r"[{}<>]|%7b|%7d|%3c|%3e", base, re.IGNORECASE):
@@ -129,11 +133,18 @@ def connection(llm: dict) -> tuple[dict, str]:
     try:
         url = urlparse(base)
         host = (url.hostname or "").lower()
-        # port 必须在这里读:它对越界或非数字端口抛 ValueError,而调用处只认 EvidenceError。
-        # 读一次同时管住两个分支 —— 内网分支的 valid 表达式并不检查端口。
-        port = url.port
     except ValueError:
-        url, host, port = None, "", None
+        url, host = None, ""
+    port = None
+    if url is not None:
+        try:
+            # port 必须在这里读一次:它对越界或非数字端口抛 ValueError,而调用处只认
+            # EvidenceError。两个分支都靠这一次读取 —— 内网分支的 valid 表达式并不检查端口。
+            port = url.port
+        except ValueError:
+            # 单独报错:共用下面那句"地址须为 https(公网)或 http(仅本地回环/内网)"时,
+            # 用户会反复去改协议,而错的是端口。
+            raise EvidenceError("API 地址的端口无效,请检查主机名后面冒号里的数字") from None
     # 本地回环 / 内网(RFC1918)地址放行 http 任意端口 —— 自托管模型网关(cc-switch 127.0.0.1:15721)、
     # 局域网 vLLM(192.168.x:8000)没有 TLS。公网地址仍强制 https + 标准端口,SSRF 边界不松。
     # "localhost" 是这里唯一放行的域名(RFC 6761 规定它解析到回环),其余域名走公网规则。
@@ -147,6 +158,15 @@ def connection(llm: dict) -> tuple[dict, str]:
     if not valid or (provider != "api-compatible" and not local_http and base.rstrip("/") not in allowed):
         raise EvidenceError("API 地址须为 https(公网)或 http(仅本地回环/内网);不支持带凭据、查询参数的地址")
     base = base.rstrip("/")
+    if host == "0.0.0.0":
+        # 归一化成 127.0.0.1 再存。两者作为目的地址等价(本机实测:listener 绑
+        # 127.0.0.1 或绑 0.0.0.0,连 127.0.0.1 或连 0.0.0.0,四种组合全通),但存原样
+        # 会把两个坑留给用户:① 0.0.0.0 不在任何默认的 NO_PROXY 豁免里(实测
+        # proxy_bypass("127.0.0.1")=True、("0.0.0.0")=False),设了系统代理时同一个
+        # 服务写 127.0.0.1 直连、写 0.0.0.0 会把 Authorization 发给代理;
+        # ② Windows 的 connect() 拒绝 INADDR_ANY,地址过了校验也连不上。
+        base = urlunparse(url._replace(
+            netloc="127.0.0.1" if port is None else f"127.0.0.1:{port}")).rstrip("/")
     key = llm.get("apiKey", "")
     if not isinstance(key, str) or not key.strip() or len(key) > 1024 or any(c.isspace() for c in key):
         raise EvidenceError("API 密钥无效，请检查接入 AI 设置")

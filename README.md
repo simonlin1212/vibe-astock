@@ -11,7 +11,7 @@
   <img src="https://img.shields.io/badge/license-Apache--2.0-blue.svg" alt="License">
   <img src="https://img.shields.io/badge/python-3.12-3776AB.svg?logo=python&logoColor=white" alt="Python">
   <img src="https://img.shields.io/badge/react-19-61DAFB.svg?logo=react&logoColor=white" alt="React">
-  <a href="https://github.com/simonlin1212/vibe-astock/releases/tag/v1.1.2"><img src="https://img.shields.io/badge/version-v1.1.2-orange.svg" alt="v1.1.2"></a>
+  <a href="https://github.com/simonlin1212/vibe-astock/releases/tag/v1.1.3"><img src="https://img.shields.io/badge/version-v1.1.3-orange.svg" alt="v1.1.3"></a>
 </p>
 
 <p align="center">
@@ -21,7 +21,7 @@
   <a href="CHANGELOG.md">更新日志</a>
 </p>
 
-**V1.1.2：收紧自托管网关的地址校验，云实例元数据地址的各种等价写法在地址校验层面一律拒绝；端口写错返回提示而不是服务错误。**
+**V1.1.3：修复 v1.1.2 的回归 —— 自托管网关启动时打印的 `http://0.0.0.0:<端口>` 重新可用；端口写错时的提示直接指向端口。**
 
 统一 AI 接入、任务进度与证据核验，保留并完善短线复盘、盯盘、个股研究和历史回测。提供 Codex、Claude、WorkBuddy / CodeBuddy 订阅接入入口，以及 DeepSeek 等 API 配置；具体要求见[接入 AI](#接入-ai)。
 
@@ -108,7 +108,7 @@ Vibe AStock 把 A 股短线研究中反复进行的工作放在一个本地网�
 
 ## 快速开始
 
-从 [v1.1.2 Release](https://github.com/simonlin1212/vibe-astock/releases/tag/v1.1.2) 获取源码并解压，在项目目录中按下面步骤启动。已有用户请先备份本地数据，更新源码后重新准备依赖。
+从 [v1.1.3 Release](https://github.com/simonlin1212/vibe-astock/releases/tag/v1.1.3) 获取源码并解压，在项目目录中按下面步骤启动。已有用户请先备份本地数据，更新源码后重新准备依赖。
 
 环境要求：Python 3.10+（推荐 3.12）、Node.js 22+（含 npm）。首次准备环境需要联网下载依赖。
 
@@ -153,7 +153,7 @@ Windows 也在本机浏览器中使用；需要安装 Python（含 `py` 启动�
 | WorkBuddy / CodeBuddy | 使用本机 CLI 登录；本次仅实测 macOS WorkBuddy 内置 CodeBuddy CLI 2.137.1 的连接、受控工具、普通对话与单日完整复盘流程 |
 | OpenAI API | 使用用户自己的配置；不以订阅测试代替 API 实测，尚未完成全部兼容验收 |
 | DeepSeek / MiMo | 提供模型与地址预设，支持自行修改；使用自己的密钥测试成功后保存 |
-| CC Switch 本机路由 / 自托管网关 | 预设 `http://127.0.0.1:15721/v1`，密钥通常填 `PROXY_MANAGED`，模型按路由实际配置填写；本机与内网（RFC1918）地址允许 http 任意端口，公网地址仍强制 HTTPS 标准端口。需路由支持流式 Responses 与工具调用 |
+| CC Switch 本机路由 / 自托管网关 | 预设 `http://127.0.0.1:15721/v1`，密钥通常填 `PROXY_MANAGED`，模型按路由实际配置填写；本机回环、内网（RFC1918）、未指定地址 `0.0.0.0` 与 IPv6 唯一本地地址允许 http 任意端口，公网地址仍强制 HTTPS 标准端口。需路由支持流式 Responses 与工具调用 |
 | 智谱 GLM / Kimi / 通义千问 | 提供阿里云百炼预设，需要填写工作空间地址和百炼密钥；须以实际连接测试为准 |
 | 硅基流动 / MiniMax / OpenRouter / Groq / Together / 自定义 | 提供可编辑的地址与模型配置；预设不代表兼容性已验证，端点必须支持 Responses API 与工具调用 |
 
@@ -219,7 +219,7 @@ python scripts/manage.py start
 
 ## 验证范围
 
-v1.1.2 发布检查：macOS 后端三目录 **1286 项通过、4 项 Windows 专项跳过**，前端 **41 项通过**，类型检查与生产构建通过。回归包含 README、网页页脚、包配置和 API 的产品版本一致性检查。
+v1.1.3 发布检查：macOS 后端三目录 **1287 项通过、4 项 Windows 专项跳过**，前端 **41 项通过**，类型检查与生产构建通过。回归包含 README、网页页脚、包配置和 API 的产品版本一致性检查。
 
 2026-09-10 源码基线 `9d84e0d` 的 Windows Server 2025 原生验收通过 **34 项运行契约和87项业务回归**，以及全新环境准备、体检、捆绑引擎启动、两次真实 HTTP 网页/API 启动和强制退出后的重启。[查看 Windows 验收记录](https://github.com/simonlin1212/vibe-astock/actions/runs/34417311929)。
 
