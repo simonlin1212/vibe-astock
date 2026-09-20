@@ -11,7 +11,7 @@
   <img src="https://img.shields.io/badge/license-Apache--2.0-blue.svg" alt="License">
   <img src="https://img.shields.io/badge/python-3.12-3776AB.svg?logo=python&logoColor=white" alt="Python">
   <img src="https://img.shields.io/badge/react-19-61DAFB.svg?logo=react&logoColor=white" alt="React">
-  <a href="https://github.com/simonlin1212/vibe-astock/releases/tag/v1.1.0"><img src="https://img.shields.io/badge/version-v1.1.0-orange.svg" alt="v1.1.0"></a>
+  <a href="https://github.com/simonlin1212/vibe-astock/releases/tag/v1.1.1"><img src="https://img.shields.io/badge/version-v1.1.1-orange.svg" alt="v1.1.1"></a>
 </p>
 
 <p align="center">
@@ -21,7 +21,7 @@
   <a href="CHANGELOG.md">Changelog</a>
 </p>
 
-**V1.1.0 builds on OpenAI Codex Harness with improved WorkBuddy integration and review evidence validation.**
+**V1.1.1 fixes the Ask-AI and AI-access failures that occurred when the page was opened over a LAN IP, and supports loopback and private-network self-hosted model gateways.**
 
 Shared AI connections, task progress, and evidence validation support market reviews, market watch, stock research, and historical backtesting. Connection options include Codex, Claude, WorkBuddy / CodeBuddy subscriptions, and API configurations such as DeepSeek. See [Connect AI](#connect-ai) for requirements and verification status.
 
@@ -108,7 +108,7 @@ The journal supports grouped self-review using market context, recorded methods,
 
 ## Quick start
 
-Get and extract the source from the [v1.1.0 Release](https://github.com/simonlin1212/vibe-astock/releases/tag/v1.1.0), then follow these steps in the project directory. Existing users should back up local data before updating the source and preparing dependencies again.
+Get and extract the source from the [v1.1.1 Release](https://github.com/simonlin1212/vibe-astock/releases/tag/v1.1.1), then follow these steps in the project directory. Existing users should back up local data before updating the source and preparing dependencies again.
 
 Requirements: Python 3.10+ (3.12 recommended), Node.js 22+ including npm. Initial setup requires internet access to download dependencies.
 
@@ -217,7 +217,7 @@ Provenance and licensing for the event-probability and backtesting code are reco
 
 ## Validation scope
 
-v1.1.0 release checks: **1,283 backend tests passed on macOS, with four Windows-specific tests skipped**; **36 frontend tests**, type checking, and a production build passed. Regression checks cover product-version consistency across the READMEs, web footer, package manifests, and APIs.
+v1.1.1 release checks: **1,285 backend tests passed on macOS, with four Windows-specific tests skipped**; **41 frontend tests**, type checking, and a production build passed. Regression checks cover product-version consistency across the READMEs, web footer, package manifests, and APIs.
 
 For source baseline `9d84e0d` on September 10, 2026, native Windows Server 2025 acceptance passed **34 runtime contracts and 87 business regression tests**, plus fresh setup, diagnostics, bundled-engine startup, two real HTTP web/API launches, and restart after forced termination. [Windows acceptance record](https://github.com/simonlin1212/vibe-astock/actions/runs/34417311929).
 
