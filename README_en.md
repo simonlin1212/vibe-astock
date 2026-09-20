@@ -11,7 +11,7 @@
   <img src="https://img.shields.io/badge/license-Apache--2.0-blue.svg" alt="License">
   <img src="https://img.shields.io/badge/python-3.12-3776AB.svg?logo=python&logoColor=white" alt="Python">
   <img src="https://img.shields.io/badge/react-19-61DAFB.svg?logo=react&logoColor=white" alt="React">
-  <a href="https://github.com/simonlin1212/vibe-astock/releases/tag/v1.1.1"><img src="https://img.shields.io/badge/version-v1.1.1-orange.svg" alt="v1.1.1"></a>
+  <a href="https://github.com/simonlin1212/vibe-astock/releases/tag/v1.1.2"><img src="https://img.shields.io/badge/version-v1.1.2-orange.svg" alt="v1.1.2"></a>
 </p>
 
 <p align="center">
@@ -21,7 +21,7 @@
   <a href="CHANGELOG.md">Changelog</a>
 </p>
 
-**V1.1.1 fixes the Ask-AI and AI-access failures that occurred when the page was opened over a LAN IP, and supports loopback and private-network self-hosted model gateways.**
+**V1.1.2 tightens address validation for self-hosted gateways so that every equivalent spelling of a cloud instance metadata address is rejected, and turns a malformed port into a message rather than a server error.**
 
 Shared AI connections, task progress, and evidence validation support market reviews, market watch, stock research, and historical backtesting. Connection options include Codex, Claude, WorkBuddy / CodeBuddy subscriptions, and API configurations such as DeepSeek. See [Connect AI](#connect-ai) for requirements and verification status.
 
@@ -108,7 +108,7 @@ The journal supports grouped self-review using market context, recorded methods,
 
 ## Quick start
 
-Get and extract the source from the [v1.1.1 Release](https://github.com/simonlin1212/vibe-astock/releases/tag/v1.1.1), then follow these steps in the project directory. Existing users should back up local data before updating the source and preparing dependencies again.
+Get and extract the source from the [v1.1.2 Release](https://github.com/simonlin1212/vibe-astock/releases/tag/v1.1.2), then follow these steps in the project directory. Existing users should back up local data before updating the source and preparing dependencies again.
 
 Requirements: Python 3.10+ (3.12 recommended), Node.js 22+ including npm. Initial setup requires internet access to download dependencies.
 
@@ -133,6 +133,8 @@ py -3 -X utf8 scripts/manage.py setup
 Windows uses the same local browser interface. Install Python (including the `py` launcher) and Node.js first. Keep the launch window open and press Ctrl+C to stop. Add `--port 8911` after `start` to change ports. Rerun `setup` and `doctor` after updating the source.
 
 The default address is `http://127.0.0.1:8910`, bound to the local loopback interface. If the port is occupied, use `sh scripts/start --port 8911`. Development previews may use other ports; the interface does not depend on a particular development port.
+
+If you change the binding to a LAN address or place the service behind a reverse proxy, list the Host values used for access in the `VIBE_ALLOW_HOSTS` environment variable (comma separated, may be placed in `.env`), for example `VIBE_ALLOW_HOSTS=192.168.1.10,astock.example.com`. Any Host not listed is rejected by every endpoint with 403, which appears in the interface as widespread read failures. Loopback addresses and `localhost` are always allowed and need not be listed.
 
 Open Connect AI to sign in or enter your own API configuration, test it, and save it. Viewing quotes and existing records does not require generating an AI report first. Starting the service does not automatically generate a review. Connection tests and AI tasks may consume the selected service's quota.
 
@@ -217,7 +219,7 @@ Provenance and licensing for the event-probability and backtesting code are reco
 
 ## Validation scope
 
-v1.1.1 release checks: **1,285 backend tests passed on macOS, with four Windows-specific tests skipped**; **41 frontend tests**, type checking, and a production build passed. Regression checks cover product-version consistency across the READMEs, web footer, package manifests, and APIs.
+v1.1.2 release checks: **1,286 backend tests passed on macOS, with four Windows-specific tests skipped**; **41 frontend tests**, type checking, and a production build passed. Regression checks cover product-version consistency across the READMEs, web footer, package manifests, and APIs.
 
 For source baseline `9d84e0d` on September 10, 2026, native Windows Server 2025 acceptance passed **34 runtime contracts and 87 business regression tests**, plus fresh setup, diagnostics, bundled-engine startup, two real HTTP web/API launches, and restart after forced termination. [Windows acceptance record](https://github.com/simonlin1212/vibe-astock/actions/runs/34417311929).
 

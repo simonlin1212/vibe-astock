@@ -11,7 +11,7 @@
   <img src="https://img.shields.io/badge/license-Apache--2.0-blue.svg" alt="License">
   <img src="https://img.shields.io/badge/python-3.12-3776AB.svg?logo=python&logoColor=white" alt="Python">
   <img src="https://img.shields.io/badge/react-19-61DAFB.svg?logo=react&logoColor=white" alt="React">
-  <a href="https://github.com/simonlin1212/vibe-astock/releases/tag/v1.1.1"><img src="https://img.shields.io/badge/version-v1.1.1-orange.svg" alt="v1.1.1"></a>
+  <a href="https://github.com/simonlin1212/vibe-astock/releases/tag/v1.1.2"><img src="https://img.shields.io/badge/version-v1.1.2-orange.svg" alt="v1.1.2"></a>
 </p>
 
 <p align="center">
@@ -21,7 +21,7 @@
   <a href="CHANGELOG.md">更新日志</a>
 </p>
 
-**V1.1.1：修复局域网 IP 访问下接入 AI 与「问 AI」必然失败的问题，支持本机与内网自托管模型网关。**
+**V1.1.2：收紧自托管网关的地址校验，云实例元数据地址的各种等价写法一律拒绝；端口写错返回提示而不是服务错误。**
 
 统一 AI 接入、任务进度与证据核验，保留并完善短线复盘、盯盘、个股研究和历史回测。提供 Codex、Claude、WorkBuddy / CodeBuddy 订阅接入入口，以及 DeepSeek 等 API 配置；具体要求见[接入 AI](#接入-ai)。
 
@@ -108,7 +108,7 @@ Vibe AStock 把 A 股短线研究中反复进行的工作放在一个本地网�
 
 ## 快速开始
 
-从 [v1.1.1 Release](https://github.com/simonlin1212/vibe-astock/releases/tag/v1.1.1) 获取源码并解压，在项目目录中按下面步骤启动。已有用户请先备份本地数据，更新源码后重新准备依赖。
+从 [v1.1.2 Release](https://github.com/simonlin1212/vibe-astock/releases/tag/v1.1.2) 获取源码并解压，在项目目录中按下面步骤启动。已有用户请先备份本地数据，更新源码后重新准备依赖。
 
 环境要求：Python 3.10+（推荐 3.12）、Node.js 22+（含 npm）。首次准备环境需要联网下载依赖。
 
@@ -133,6 +133,8 @@ py -3 -X utf8 scripts/manage.py setup
 Windows 也在本机浏览器中使用；需要安装 Python（含 `py` 启动器）和 Node.js。保留启动窗口，按 Ctrl+C 停止服务；更换端口可在 `start` 后加 `--port 8911`。更新源码后重新运行上述 `setup` 和 `doctor`。
 
 默认地址为 `http://127.0.0.1:8910`，只监听本机回环地址。端口被占用时可运行 `sh scripts/start --port 8911`。开发预览可使用其他端口；截图中的布局不依赖固定开发端口。
+
+自行改为监听局域网地址或挂在反向代理后面时，需要把访问用的 Host 写进环境变量 `VIBE_ALLOW_HOSTS`（逗号分隔，可写在 `.env` 中），例如 `VIBE_ALLOW_HOSTS=192.168.1.10,astock.example.com`。未列出的 Host 会被全部接口拒绝并返回 403，页面表现为各处读取失败。回环地址与 `localhost` 始终允许，不需要写入。
 
 先到「接入 AI」完成登录或填写自己的 API 配置，测试成功后保存。查看行情与已有记录不要求先生成 AI 报告；启动服务也不会自动生成复盘。连接测试和 AI 任务可能消耗所选服务的额度。
 
@@ -217,7 +219,7 @@ python scripts/manage.py start
 
 ## 验证范围
 
-v1.1.1 发布检查：macOS 后端三目录 **1285 项通过、4 项 Windows 专项跳过**，前端 **41 项通过**，类型检查与生产构建通过。回归包含 README、网页页脚、包配置和 API 的产品版本一致性检查。
+v1.1.2 发布检查：macOS 后端三目录 **1286 项通过、4 项 Windows 专项跳过**，前端 **41 项通过**，类型检查与生产构建通过。回归包含 README、网页页脚、包配置和 API 的产品版本一致性检查。
 
 2026-09-10 源码基线 `9d84e0d` 的 Windows Server 2025 原生验收通过 **34 项运行契约和87项业务回归**，以及全新环境准备、体检、捆绑引擎启动、两次真实 HTTP 网页/API 启动和强制退出后的重启。[查看 Windows 验收记录](https://github.com/simonlin1212/vibe-astock/actions/runs/34417311929)。
 
