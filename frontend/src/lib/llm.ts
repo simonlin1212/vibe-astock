@@ -1,4 +1,4 @@
-import { randomId, hexHash } from "./random-id";
+import { randomId, hexHash } from "@/lib/random-id";
 // Every product AI entry reads the same explicitly tested connection.
 import { agentRequest, AgentRequestError, loadAgentConnection } from './agent-api';
 import { readMode } from './workspace/state';
