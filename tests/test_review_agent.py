@@ -202,9 +202,10 @@ def test_cloud_metadata_endpoints_stay_blocked_after_allowing_private_http():
     169.254.169.254 是 AWS/GCP/Azure 的实例元数据服务，读到它等于拿到实例角色凭据。
     坑在于 `ipaddress` 把 169.254.0.0/16 也算作 `is_private`，所以"放行内网"这一步
     会顺手把元数据地址放进来 —— 放行侧必须是显式网段白名单，这条测试钉住白名单的边界。
-    同一个地址有多种写法能绕开按属性判定的写法：IPv4-mapped 的 ::ffff:169.254.169.254
-    在 CPython gh-113171 之前 `is_link_local` 为 False，6to4 的 2002:a9fe:a9fe::
-    至今 `is_link_local` 都是 False —— 两者都内嵌着同一个元数据地址。
+    同一个地址有多种写法能绕开按属性做的判定，而且不同 CPython 版本漏的写法还不一样：
+    3.9.6 上 ::ffff:169.254.169.254 的 `is_link_local` 为 False（漏），
+    3.12.13 上 2002:a9fe:a9fe:: 的 `is_private` 为 True、`is_link_local` 为 False（漏）。
+    两种写法内嵌的都是同一个元数据地址，所以两种都要钉住。
     阿里云的 100.100.100.200 走 CGNAT(100.64.0.0/10)，同样不在白名单内。
     """
     from review_agent.runtime import EvidenceError, connection
@@ -254,6 +255,8 @@ def test_malformed_port_is_a_rejection_not_a_crash():
     from review_agent.runtime import EvidenceError, connection
     key = "k" * 32
 
+    # 公网两条必须带 provider="api-compatible"：不带的话 base 不在 allowed 名单里，
+    # 无论端口写成什么都会被拒 —— 那样这两条就是空转，端口规则删掉也不会红。
     for url in (
         "https://example.com:99999/v1",   # 公网，端口越界
         "https://example.com:abc/v1",     # 公网，端口非数字
@@ -262,7 +265,7 @@ def test_malformed_port_is_a_rejection_not_a_crash():
         "http://127.0.0.1:169.254.169.254/v1",  # 把元数据地址塞进端口位
     ):
         with pytest.raises(EvidenceError):
-            connection({"model": "x", "apiKey": key, "baseURL": url})
+            connection({"model": "x", "apiKey": key, "baseURL": url, "provider": "api-compatible"})
 
     # 阴性对照：合法端口必须仍然放行，否则上面五条可能只是"端口一律拒绝"。
     for url in ("https://example.com:443/v1", "http://127.0.0.1:15721/v1"):

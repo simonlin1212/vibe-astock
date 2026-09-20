@@ -21,7 +21,7 @@
   <a href="CHANGELOG.md">Changelog</a>
 </p>
 
-**V1.1.2 tightens address validation for self-hosted gateways so that every equivalent spelling of a cloud instance metadata address is rejected, and turns a malformed port into a message rather than a server error.**
+**V1.1.2 tightens address validation for self-hosted gateways so that every equivalent spelling of a cloud instance metadata address is rejected at the address-validation layer, and turns a malformed port into a message rather than a server error.**
 
 Shared AI connections, task progress, and evidence validation support market reviews, market watch, stock research, and historical backtesting. Connection options include Codex, Claude, WorkBuddy / CodeBuddy subscriptions, and API configurations such as DeepSeek. See [Connect AI](#connect-ai) for requirements and verification status.
 
@@ -134,7 +134,7 @@ Windows uses the same local browser interface. Install Python (including the `py
 
 The default address is `http://127.0.0.1:8910`, bound to the local loopback interface. If the port is occupied, use `sh scripts/start --port 8911`. Development previews may use other ports; the interface does not depend on a particular development port.
 
-If you change the binding to a LAN address or place the service behind a reverse proxy, list the Host values used for access in the `VIBE_ALLOW_HOSTS` environment variable (comma separated, may be placed in `.env`), for example `VIBE_ALLOW_HOSTS=192.168.1.10,astock.example.com`. Any Host not listed is rejected by every endpoint with 403, which appears in the interface as widespread read failures. Loopback addresses and `localhost` are always allowed and need not be listed.
+If you change the binding to a LAN address or place the service behind a reverse proxy, list the Host values used for access in the `VIBE_ALLOW_HOSTS` environment variable (comma separated, may be placed in `.env`), for example `VIBE_ALLOW_HOSTS=192.168.1.10,astock.example.com`. Any Host not listed is rejected by every endpoint with 403, which appears in the interface as widespread read failures. `127.0.0.1`, `::1` and `localhost` are always allowed and need not be listed; other loopback addresses such as `127.0.0.2` are not in the default set.
 
 Open Connect AI to sign in or enter your own API configuration, test it, and save it. Viewing quotes and existing records does not require generating an AI report first. Starting the service does not automatically generate a review. Connection tests and AI tasks may consume the selected service's quota.
 
