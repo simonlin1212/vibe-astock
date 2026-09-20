@@ -58,7 +58,9 @@ export function sourceLabel(connection: Connection): string {
   const provider = providerFor(connection);
   return SUBSCRIPTION_PROVIDERS.find(p => p.id === provider)?.name ?? `${API_PROVIDERS.find(p => p.id === provider)?.name ?? '自定义'} API`;
 }
-// 本地回环 / 内网(RFC1918)host 判定 —— 与后端 runtime._is_private_ip 同口径。
+// 本地回环 / 内网(RFC1918)host 判定 —— 只为在设置页即时给提示,**真正的边界在后端**
+// runtime.connection()。这里刻意比后端窄(只认这几段 IPv4 字面量),窄的一侧是安全的:
+// 前端放行的后端一定也放行,反之不然(例如 IPv6 唯一本地地址后端收、这里不收)。
 // 自托管模型网关(cc-switch 127.0.0.1:15721)、局域网 vLLM(192.168.x:8000)无 TLS,
 // 对这些 host 放行 http 任意端口;公网 host 仍强制 https 标准端口,SSRF 边界不松。
 function isLocalOrPrivateHost(hostname: string | null): boolean {

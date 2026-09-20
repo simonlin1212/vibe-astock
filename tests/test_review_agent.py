@@ -196,6 +196,35 @@ def test_credentials_only_in_engine_env_and_config_blocks_escape(tmp_path, monke
             connection({"model": "x", "apiKey": key, "baseURL": url})
 
 
+def test_cloud_metadata_endpoints_stay_blocked_after_allowing_private_http():
+    """放行内网 http 之后，云厂商实例元数据地址必须仍然拒绝。
+
+    169.254.169.254 是 AWS/GCP/Azure 的实例元数据服务，读到它等于拿到实例角色凭据。
+    坑在于 `ipaddress` 把 169.254.0.0/16 也算作 `is_private`，所以"放行内网"这一步
+    会顺手把元数据地址放进来 —— 必须单独排除链路本地段，这条测试钉住那个排除。
+    阿里云的 100.100.100.200 走 CGNAT(100.64.0.0/10)，`is_private` 为 False 而被拒；
+    一并钉住，免得以后有人"补全内网段"时把 CGNAT 也加进放行名单。
+    """
+    from review_agent.runtime import EvidenceError, connection
+    key = "k" * 32
+
+    blocked = {
+        "http://169.254.169.254/latest/meta-data/": "AWS/GCP/Azure 实例元数据",
+        "http://169.254.169.254:80/v1": "同上，带显式端口",
+        "http://[fe80::1]:8000/v1": "IPv6 链路本地",
+        "http://100.100.100.200/latest/meta-data/": "阿里云实例元数据(CGNAT 段)",
+    }
+    for url, why in blocked.items():
+        with pytest.raises(EvidenceError):
+            connection({"model": "x", "apiKey": key, "baseURL": url})
+
+    # 阴性对照：正常内网网关必须仍然放行。没有这一半的话，connection() 整体坏掉
+    # (任何地址都抛)也会让上面四条全过 —— 那是"命令坏了"，不是"边界守住了"。
+    for url in ("http://127.0.0.1:15721/v1", "http://192.168.250.10:8000/v1"):
+        src, _ = connection({"model": "x", "apiKey": key, "baseURL": url})
+        assert src["baseURL"] == url.rstrip("/"), url
+
+
 def test_event_channel_requires_completion_and_rejects_uncontrolled_tools(tmp_path):
     import os
     import subprocess
