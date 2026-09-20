@@ -3,8 +3,10 @@ import assert from 'node:assert/strict';
 import { API_PROVIDERS, draftFor, connectionFor, providerFor, sourceLabel, draftError } from '../src/lib/ai-access.ts';
 
 test('Research API choices retain their endpoint and model through submission', () => {
-  assert.deepEqual(API_PROVIDERS.map(p=>p.id), ['deepseek','mimo','glm','kimi','qwen','openai','silicon','minimax','openrouter','groq','together','api-compatible']);
-  for (const preset of API_PROVIDERS.filter(p=>p.id!=='api-compatible')) {
+  assert.deepEqual(API_PROVIDERS.map(p=>p.id), ['deepseek','mimo','cc-switch','glm','kimi','qwen','openai','silicon','minimax','openrouter','groq','together','api-compatible']);
+  // 判据是「带预设模型的项」而不是「除了 api-compatible」—— cc-switch 同样没有预设模型
+  // (模型取决于用户本机路由怎么配)，下面 preset.models[0].id 对它会直接抛。
+  for (const preset of API_PROVIDERS.filter(p=>p.models.length>0)) {
     const draft=draftFor(preset.id);
     const base=draft.baseURL.replace('{WorkspaceId}','test-workspace');
     const connection=connectionFor({...draft,baseURL:base,apiKey:'TEST_ONLY_KEY'});
@@ -35,6 +37,27 @@ test('custom addresses and custom models survive without misleading source label
   assert.equal(sourceLabel(saved),'自定义 API');
   assert.equal(providerFor({...saved,baseURL:'https://api.deepseek.com.evil.test'}),'api-compatible');
   assert.equal(providerFor({...saved,baseURL:'https://user:pass@api.deepseek.com'}),'api-compatible');
+});
+
+test('CC Switch 预设带占位密钥、留空模型，并能按地址认回自己', () => {
+  const draft = draftFor('cc-switch');
+  assert.equal(draft.baseURL, 'http://127.0.0.1:15721/v1');
+  // 本机代理持有真实密钥，客户端填占位符；不预填的话用户会撞上「请填写有效 API 密钥」。
+  assert.equal(draft.apiKey, 'PROXY_MANAGED');
+  // 模型必须留空：路由后面接什么模型只有用户知道，预填一个会诱导用户直接保存。
+  assert.equal(draft.model, '');
+  assert.match(draftError(draft), /模型/, '模型留空时必须挡住保存');
+
+  const connection = connectionFor({...draft, model: 'glm-5.3-flash'});
+  assert.equal(draftError({...draft, model: 'glm-5.3-flash'}), '');
+  // 后端按 api-compatible 收，才能跳过云端点白名单走本机地址。
+  assert.equal(connection.provider, 'api-compatible');
+  // 存盘后重开设置页要能认回 CC Switch，而不是掉回「自定义」。
+  assert.equal(providerFor(connection), 'cc-switch');
+  assert.equal(sourceLabel(connection), 'CC Switch 本机路由 API');
+
+  // 其它预设不受影响：只有 cc-switch 预填密钥。
+  for (const id of ['deepseek','mimo','glm','api-compatible']) assert.equal(draftFor(id).apiKey, '', id);
 });
 
 test('incomplete or unsafe API fields cannot start a paid probe', () => {

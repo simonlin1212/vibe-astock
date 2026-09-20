@@ -151,6 +151,7 @@ Web AI entry points share the source and model tested and saved in Connect AI. A
 | WorkBuddy / CodeBuddy | Uses local CLI login. This test covered only CodeBuddy CLI 2.137.1 bundled with WorkBuddy on macOS: connection, bounded tools, ordinary chat, and a complete single-day review workflow. |
 | OpenAI API | Uses the user's own configuration. Subscription tests do not substitute for API validation; the full compatibility assessment is incomplete |
 | DeepSeek / MiMo | Editable model and endpoint presets; use your own key and pass the connection test before saving |
+| CC Switch local route / self-hosted gateway | Preset `http://127.0.0.1:15721/v1`; the key is usually `PROXY_MANAGED` and the model follows your route's actual configuration. Loopback and private (RFC1918) addresses may use http on any port; public addresses still require HTTPS on the standard port. The route must support streaming Responses and tool calling |
 | GLM / Kimi / Qwen | Alibaba Cloud Bailian presets require the workspace endpoint and a Bailian key; availability must be tested with your account |
 | SiliconFlow / MiniMax / OpenRouter / Groq / Together / custom | Editable endpoint and model settings; presets do not establish verified compatibility. Endpoints must support the Responses API and tool calling |
 

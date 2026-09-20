@@ -3,6 +3,7 @@ type Connection = { provider: string; model: string; baseURL: string; apiKey: st
 export type AccessDraft = Connection;
 const bailian = 'https://{WorkspaceId}.cn-beijing.maas.aliyuncs.com/compatible-mode/v1';
 const hosted = '通过阿里云百炼接入，请使用百炼工作空间的地址和密钥。';
+const ccSwitch = 'http://127.0.0.1:15721/v1';
 export const SUBSCRIPTION_PROVIDERS = [
   { id: 'codex-private', name: 'Codex 订阅', detail: '使用 ChatGPT 账户登录产品专用空间' },
   { id: 'claude', name: 'Claude 订阅', detail: '使用本机 Claude Code 登录' },
@@ -14,6 +15,8 @@ const preset = (id: string, name: string, baseURL: string, models: string[], det
 export const API_PROVIDERS = [
   preset('deepseek', 'DeepSeek', 'https://api.deepseek.com', ['deepseek-v4-flash', 'deepseek-v4-pro']),
   preset('mimo', 'MiMo', 'https://token-plan-cn.xiaomimimo.com/v1', ['mimo-v2.5', 'mimo-v2.5-pro']),
+  preset('cc-switch', 'CC Switch 本机路由', ccSwitch, [],
+    'CC Switch 需在本机开启 Responses 路由；API 密钥通常填 PROXY_MANAGED，模型按路由实际配置自行填写。'),
   preset('glm', '智谱 GLM', bailian, ['glm-5.2'], hosted),
   preset('kimi', 'Kimi', bailian, ['kimi-k2.7-code'], hosted),
   preset('qwen', '通义千问', bailian, ['qwen3.8-max'], hosted),
@@ -46,7 +49,9 @@ export function providerFor(connection: Connection): string {
 export function draftFor(provider: string, saved?: Connection | null): AccessDraft {
   if (saved && providerFor(saved) === provider) return { provider, model: saved.model, baseURL: saved.baseURL, apiKey: isSubscription(provider) ? '' : saved.apiKey };
   const entry = API_PROVIDERS.find(p => p.id === provider);
-  return { provider, model: entry?.models[0]?.id ?? (['claude', 'codebuddy'].includes(provider) ? 'default' : ''), baseURL: entry?.baseURL ?? '', apiKey: '' };
+  // cc-switch 由本机代理持有真实密钥，客户端这一侧填占位符即可；后端只要求非空。
+  return { provider, model: entry?.models[0]?.id ?? (['claude', 'codebuddy'].includes(provider) ? 'default' : ''),
+           baseURL: entry?.baseURL ?? '', apiKey: entry?.id === 'cc-switch' ? 'PROXY_MANAGED' : '' };
 }
 export function connectionFor(draft: AccessDraft): Connection {
   if (isSubscription(draft.provider)) return { provider: draft.provider, model: draft.model.trim(), baseURL: '', apiKey: '' };

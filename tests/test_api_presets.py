@@ -16,6 +16,20 @@ def test_api_preset_reaches_responses_engine_unchanged(tmp_path, url):
     assert source['model'] == 'custom/model'
     assert key == 'TEST_ONLY_KEY' and key not in repr(config)
 
+def test_cc_switch_local_route_reaches_responses_engine(tmp_path):
+    """本机 CC Switch 路由要能一路走到引擎配置，尾斜杠要被规范化掉。"""
+    source, key = connection({
+        'provider': 'api-compatible', 'baseURL': 'http://127.0.0.1:15721/v1/',
+        'model': 'glm-5.3-flash', 'apiKey': 'PROXY_MANAGED',
+    })
+    config = config_for(tmp_path, source)
+    assert source == {'provider': 'api-compatible', 'model': 'glm-5.3-flash',
+                      'baseURL': 'http://127.0.0.1:15721/v1'}
+    assert config['model_providers.astock_api']['base_url'] == 'http://127.0.0.1:15721/v1'
+    assert config['model_providers.astock_api']['wire_api'] == 'responses'
+    assert key == 'PROXY_MANAGED' and key not in repr(config)
+
+
 @pytest.mark.parametrize('url', ['https://{WorkspaceId}.cn-beijing.maas.aliyuncs.com/compatible-mode/v1', 'https://host/<workspace>/v1'])
 def test_unfilled_endpoint_placeholder_is_rejected(url):
     with pytest.raises(EvidenceError):
