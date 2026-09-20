@@ -71,5 +71,9 @@ test('incomplete or unsafe API fields cannot start a paid probe', () => {
   assert.equal(draftError({...d,baseURL:'http://127.0.0.1:15721/v1'}),'');
   assert.equal(draftError({...d,baseURL:'http://192.168.250.10:8000/v1'}),'');
   assert.equal(draftError({...d,baseURL:'http://localhost/v1'}),'');
+  // 内网前缀打头的**域名**不是内网:这些 host 会解析到公网,http 必须挡住。
+  // 判据挂在"整串是不是那几段 IPv4",不是"以 192.168. 开头"。
+  for (const baseURL of ['http://192.168.1.1.evil.com/v1','http://10.foo.example.com/v1','http://127.0.0.1.evil.com/v1'])
+    assert.ok(draftError({...d,baseURL}), baseURL);
   assert.ok(draftError({...draftFor('deepseek'),apiKey:''}));
 });

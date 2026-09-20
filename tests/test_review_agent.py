@@ -201,9 +201,11 @@ def test_cloud_metadata_endpoints_stay_blocked_after_allowing_private_http():
 
     169.254.169.254 是 AWS/GCP/Azure 的实例元数据服务，读到它等于拿到实例角色凭据。
     坑在于 `ipaddress` 把 169.254.0.0/16 也算作 `is_private`，所以"放行内网"这一步
-    会顺手把元数据地址放进来 —— 必须单独排除链路本地段，这条测试钉住那个排除。
-    阿里云的 100.100.100.200 走 CGNAT(100.64.0.0/10)，`is_private` 为 False 而被拒；
-    一并钉住，免得以后有人"补全内网段"时把 CGNAT 也加进放行名单。
+    会顺手把元数据地址放进来 —— 放行侧必须是显式网段白名单，这条测试钉住白名单的边界。
+    同一个地址有多种写法能绕开按属性判定的写法：IPv4-mapped 的 ::ffff:169.254.169.254
+    在 CPython gh-113171 之前 `is_link_local` 为 False，6to4 的 2002:a9fe:a9fe::
+    至今 `is_link_local` 都是 False —— 两者都内嵌着同一个元数据地址。
+    阿里云的 100.100.100.200 走 CGNAT(100.64.0.0/10)，同样不在白名单内。
     """
     from review_agent.runtime import EvidenceError, connection
     key = "k" * 32
@@ -213,15 +215,58 @@ def test_cloud_metadata_endpoints_stay_blocked_after_allowing_private_http():
         "http://169.254.169.254:80/v1": "同上，带显式端口",
         "http://[fe80::1]:8000/v1": "IPv6 链路本地",
         "http://100.100.100.200/latest/meta-data/": "阿里云实例元数据(CGNAT 段)",
+        "http://[::ffff:169.254.169.254]/latest/meta-data/": "IPv4-mapped 写法的元数据地址",
+        "http://[::ffff:a9fe:a9fe]/v1": "同上，十六进制写法",
+        "http://[2002:a9fe:a9fe::1]/v1": "6to4 写法，内嵌 169.254.169.254",
+        "http://0.0.0.0:15721/v1": "0.0.0.0/8，is_private 为 True 但不是网关地址",
+        "http://240.0.0.1/v1": "240.0.0.0/4 保留段",
+        "http://203.0.113.9/v1": "TEST-NET-3 文档段",
+        "http://198.18.0.1/v1": "198.18.0.0/15 基准测试段",
     }
     for url, why in blocked.items():
         with pytest.raises(EvidenceError):
             connection({"model": "x", "apiKey": key, "baseURL": url})
 
     # 阴性对照：正常内网网关必须仍然放行。没有这一半的话，connection() 整体坏掉
-    # (任何地址都抛)也会让上面四条全过 —— 那是"命令坏了"，不是"边界守住了"。
-    for url in ("http://127.0.0.1:15721/v1", "http://192.168.250.10:8000/v1"):
+    # (任何地址都抛)也会让上面那些全过 —— 那是"命令坏了"，不是"边界守住了"。
+    # 白名单里的每一段都要有一条，否则删掉其中一段不会让任何测试变红。
+    for url in (
+        "http://127.0.0.1:15721/v1",        # 127.0.0.0/8
+        "http://127.5.5.5:8000/v1",         # 同上，不是 127.0.0.1 那个字面量
+        "http://10.0.0.1:8000/v1",          # 10.0.0.0/8
+        "http://172.20.1.1:8000/v1",        # 172.16.0.0/12
+        "http://192.168.250.10:8000/v1",    # 192.168.0.0/16
+        "http://[::1]:15721/v1",            # ::1/128
+        "http://[0:0:0:0:0:0:0:1]:15721/v1",  # 同上，展开写法不在调用处的字面量里
+        "http://[fd00::1]:8000/v1",         # fc00::/7 唯一本地地址
+    ):
         src, _ = connection({"model": "x", "apiKey": key, "baseURL": url})
+        assert src["baseURL"] == url.rstrip("/"), url
+
+
+def test_malformed_port_is_a_rejection_not_a_crash():
+    """端口写错要得到 EvidenceError(前端显示成一句话)，不能抛 ValueError 变成 500。
+
+    `urlparse(...).port` 对越界或非数字端口抛 ValueError，而调用处只捕获 EvidenceError。
+    公网与内网两个分支都要覆盖：内网分支的 valid 表达式根本不读 port，端口合法性
+    只能靠"读一次 port"这个动作本身来保证，两边因此必须共用同一次读取。
+    """
+    from review_agent.runtime import EvidenceError, connection
+    key = "k" * 32
+
+    for url in (
+        "https://example.com:99999/v1",   # 公网，端口越界
+        "https://example.com:abc/v1",     # 公网，端口非数字
+        "http://127.0.0.1:99999/v1",      # 回环，端口越界
+        "http://127.0.0.1:abc/v1",        # 回环，端口非数字
+        "http://127.0.0.1:169.254.169.254/v1",  # 把元数据地址塞进端口位
+    ):
+        with pytest.raises(EvidenceError):
+            connection({"model": "x", "apiKey": key, "baseURL": url})
+
+    # 阴性对照：合法端口必须仍然放行，否则上面五条可能只是"端口一律拒绝"。
+    for url in ("https://example.com:443/v1", "http://127.0.0.1:15721/v1"):
+        src, _ = connection({"model": "x", "apiKey": key, "baseURL": url, "provider": "api-compatible"})
         assert src["baseURL"] == url.rstrip("/"), url
 
 

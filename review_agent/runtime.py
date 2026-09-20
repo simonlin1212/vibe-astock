@@ -85,22 +85,25 @@ accepted=true 后立即结束本轮，最终聊天文字只说“分析完成”
 只解释证据直接支持的变化，计数升降不能推出盘中时点、约束松紧、资金动机或因果机制；缺少对应资料时明确不作判断。"""
 
 
-def _is_private_ip(host: str) -> bool:
-    """hostname 是回环/RFC1918 内网 IP 字面量才 True;域名/公网 IP/解析失败一律 False。
+# 允许用 http 接入的网段:回环、RFC1918 三段、IPv6 回环与唯一本地地址。
+# 白名单而不是 ipaddress 的 is_private —— 后者覆盖面宽得多(链路本地 169.254.0.0/16、
+# 6to4 2002::/16、0.0.0.0/8、240.0.0.0/4 都算 private),而且属性语义随 CPython 补丁
+# 版本变化(IPv4-mapped 的 ::ffff:169.254.169.254 在 gh-113171 之前 is_link_local 为
+# False)。云厂商的实例元数据服务住在 169.254.169.254,而 6to4 与 IPv4-mapped 都能把
+# 它重新编码一遍 —— 靠"再排除一段"追不完,只有白名单能一次说清放行的是哪几段。
+_LOCAL_NETWORKS = tuple(ipaddress.ip_network(n) for n in (
+    "127.0.0.0/8", "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "::1/128", "fc00::/7",
+))
 
-    链路本地(169.254.0.0/16、fe80::/10)显式排除:云厂商的实例元数据服务就住在
-    169.254.169.254,而 ipaddress 把这一段算进 is_private —— 只看 is_private 会顺手
-    把它放进来。本项目可以部署到云服务器(nginx 反代 + basic auth),放行它等于把实例
-    凭据交给任何能改模型地址的人;自托管网关不会用链路本地地址,排除掉没有代价。
-    """
+
+def _is_private_ip(host: str) -> bool:
+    """hostname 落在 _LOCAL_NETWORKS 里的 IP 字面量才 True;域名/其余地址/解析失败一律 False。"""
     try:
         ip = ipaddress.ip_address(host)
     except ValueError:
         # 域名一律不放 http:DNS 可以指向任意地址。唯一的例外 "localhost" 由调用处单列。
         return False
-    if ip.is_link_local:
-        return False
-    return ip.is_private or ip.is_loopback
+    return any(ip in net for net in _LOCAL_NETWORKS)
 
 
 def connection(llm: dict) -> tuple[dict, str]:
@@ -123,8 +126,11 @@ def connection(llm: dict) -> tuple[dict, str]:
     try:
         url = urlparse(base)
         host = (url.hostname or "").lower()
+        # port 必须在这里读:它对越界或非数字端口抛 ValueError,而调用处只认 EvidenceError。
+        # 读一次同时管住两个分支 —— 内网分支的 valid 表达式并不检查端口。
+        port = url.port
     except ValueError:
-        url, host = None, ""
+        url, host, port = None, "", None
     # 本地回环 / 内网(RFC1918)地址放行 http 任意端口 —— 自托管模型网关(cc-switch 127.0.0.1:15721)、
     # 局域网 vLLM(192.168.x:8000)没有 TLS。公网地址仍强制 https + 标准端口,SSRF 边界不松。
     # "localhost" 是这里唯一放行的域名(RFC 6761 规定它解析到回环),其余域名走公网规则。
@@ -132,7 +138,7 @@ def connection(llm: dict) -> tuple[dict, str]:
     if url is not None and local_http:
         valid = (url.scheme in ("http", "https")) and host and not url.username and not url.password and not url.query and not url.fragment
     elif url is not None:
-        valid = url.scheme == "https" and host and not url.username and not url.password and not url.query and not url.fragment and url.port in (None, 443)
+        valid = url.scheme == "https" and host and not url.username and not url.password and not url.query and not url.fragment and port in (None, 443)
     else:
         valid = False
     if not valid or (provider != "api-compatible" and not local_http and base.rstrip("/") not in allowed):
