@@ -45,15 +45,20 @@ Captured on September 9, 2026, this screenshot shows a review of public market d
 
 ## Seven work modules
 
-| Primary module | Pages and main content |
-|---|---|
-| Home | Chat, categorized feature shortcuts, and recent reports |
-| Market watch | Market data including watchlist quotes, live events, yesterday's cohorts, and intraday verification |
-| Market review | Review reports, first-limit-up analysis, five-session heat, and historical statistics |
-| News radar | News aggregation and event probabilities, with sources, timestamps, and coverage status |
-| Stock research | Quotes, valuation, financial and research-report materials; bull–bear discussion |
-| Backtesting | AI-assisted rule clarification, confirmation, program calculation, and report archiving |
-| My stocks | Holdings and watchlist, trading journal, and research notes |
+<table>
+<thead>
+<tr><th nowrap>Primary module</th><th>Pages and main content</th></tr>
+</thead>
+<tbody>
+<tr><td nowrap>Home</td><td>Chat, categorized feature shortcuts, and recent reports</td></tr>
+<tr><td nowrap>Market watch</td><td>Market data including watchlist quotes, live events, yesterday's cohorts, and intraday verification</td></tr>
+<tr><td nowrap>Market review</td><td>Review reports, first-limit-up analysis, five-session heat, and historical statistics</td></tr>
+<tr><td nowrap>News radar</td><td>News aggregation and event probabilities, with sources, timestamps, and coverage status</td></tr>
+<tr><td nowrap>Stock research</td><td>Quotes, valuation, financial and research-report materials; bull–bear discussion</td></tr>
+<tr><td nowrap>Backtesting</td><td>AI-assisted rule clarification, confirmation, program calculation, and report archiving</td></tr>
+<tr><td nowrap>My stocks</td><td>Holdings and watchlist, trading journal, and research notes</td></tr>
+</tbody>
+</table>
 
 Connect AI is at the bottom of the sidebar. Holdings and the watchlist appear in two vertically stacked sections on one page. Holdings are derived from the trading journal rather than maintained in a second, potentially conflicting ledger.
 

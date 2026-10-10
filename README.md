@@ -171,14 +171,19 @@ Agent 默认关闭：普通聊天不启用工具或联网。开启后，适用�
 
 本地网页仍需要联网取数；使用远程 AI 时，问题、所选材料和必要上下文会发送给用户选择的供应商。不能把“本地保存”理解为“所有计算都离线”。
 
-| 数据 | 默认位置与注意事项 |
-|---|---|
-| Agent 会话、任务、证据账本与产品登录 | `~/.vibe-astock-agent/`；可用 `ASTOCK_AGENT_HOME` 改变该根目录 |
-| 复盘、版本、交易日志与原始归档 | `~/.duanxian-agents/`，包括 `reviews/`、`journal/`、`archive/` 等；可用 `ASTOCK_DATA_HOME` 指定绝对路径 |
-| 市场资料与盯盘缓存 | `~/.vibe-astock-agent/market-data/`；可通过 `VR_DATA_DIR` 指定 |
-| 研报资料 | 默认在上述市场资料目录的 `myreports/`；`VR_REPORTS_DIR` 可单独指定 |
-| 自选、研究记录、界面状态与 API 配置 | 当前浏览器站点的本地存储；更换浏览器、端口或清理站点数据会影响读取 |
-| 开发日志与运行诊断 | 仓库 `.local/`，默认不进入版本控制 |
+<table>
+<thead>
+<tr><th nowrap>数据</th><th>默认位置与注意事项</th></tr>
+</thead>
+<tbody>
+<tr><td nowrap>Agent 会话、任务、证据账本与产品登录</td><td><code>~/.vibe-astock-agent/</code>；可用 <code>ASTOCK_AGENT_HOME</code> 改变该根目录</td></tr>
+<tr><td nowrap>复盘、版本、交易日志与原始归档</td><td><code>~/.duanxian-agents/</code>，包括 <code>reviews/</code>、<code>journal/</code>、<code>archive/</code> 等；可用 <code>ASTOCK_DATA_HOME</code> 指定绝对路径</td></tr>
+<tr><td nowrap>市场资料与盯盘缓存</td><td><code>~/.vibe-astock-agent/market-data/</code>；可通过 <code>VR_DATA_DIR</code> 指定</td></tr>
+<tr><td nowrap>研报资料</td><td>默认在上述市场资料目录的 <code>myreports/</code>；<code>VR_REPORTS_DIR</code> 可单独指定</td></tr>
+<tr><td nowrap>自选、研究记录、界面状态与 API 配置</td><td>当前浏览器站点的本地存储；更换浏览器、端口或清理站点数据会影响读取</td></tr>
+<tr><td nowrap>开发日志与运行诊断</td><td>仓库 <code>.local/</code>，默认不进入版本控制</td></tr>
+</tbody>
+</table>
 
 这些位置不是由一个开关统一迁移的：更改 `ASTOCK_AGENT_HOME` 不会自动搬走交易日志、市场资料或浏览器数据。备份应覆盖实际使用的目录及页面可导出的记录，并妥善保护其中的登录与密钥。不要将私人记录、API key 或登录文件提交到仓库；不要复制开发助手的登录文件来替代产品授权。
 
