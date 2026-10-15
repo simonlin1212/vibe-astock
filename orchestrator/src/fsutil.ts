@@ -7,21 +7,6 @@ import path from "node:path";
 /** O_NOFOLLOW 在 Windows 不受支持；Windows 路径由 safePath/lstat 的逐级链接检查保护。 */
 export const NOFOLLOW_FLAG = process.platform === "win32" ? 0 : fs.constants.O_NOFOLLOW;
 
-const WINDOWS_PRIVATE_ACL = String.raw`
-$ErrorActionPreference = "Stop"
-$file = $env:VRA_PRIVATE_FILE
-$sid = [System.Security.Principal.WindowsIdentity]::GetCurrent().User
-$acl = Get-Acl -LiteralPath $file
-$acl.SetAccessRuleProtection($true, $false)
-foreach ($existing in @($acl.Access)) {
-  [void]$acl.RemoveAccessRuleSpecific($existing)
-}
-$rule = New-Object System.Security.AccessControl.FileSystemAccessRule($sid, [System.Security.AccessControl.FileSystemRights]::FullControl, [System.Security.AccessControl.AccessControlType]::Allow)
-$acl.AddAccessRule($rule)
-$acl.SetOwner($sid)
-Set-Acl -LiteralPath $file -AclObject $acl
-`;
-
 const WINDOWS_CHECK_ACL = String.raw`
 $ErrorActionPreference = "Stop"
 $file = $env:VRA_PRIVATE_FILE
@@ -52,20 +37,45 @@ function windowsAcl(script: string, file: string): { status: number | null; erro
   return { status: result.status, error: result.error };
 }
 
-/** Windows 的 mode 0600 不会改变 NTFS DACL；敏感文件必须显式断开继承并只授权当前 SID。 */
+/** Windows 的 mode 0600 不会改变 NTFS DACL；敏感文件必须显式断开继承并只授权当前用户。
+ *
+ * 🔴 不用 Get-Acl/Set-Acl:Get-Acl 默认捕获全部安全节(含 SACL),Set-Acl 会原样写回,
+ *    而写 SACL 需要 SeSecurityPrivilege —— 普通未提权进程没有这个特权,
+ *    整个 API 会因此起不来(2026-10-14 实测:PrivilegeNotHeldException)。
+ *    icacls 只动 DACL 和继承标志,不需要任何特权,语义相同(断开继承 + 仅当前用户 FullControl)。
+ */
+function windowsAccount(): string {
+  const user = process.env.USERNAME ?? "";
+  const domain = process.env.USERDOMAIN ?? "";
+  if (!user) throw new Error("拿不到当前用户名(USERNAME 为空)");
+  return domain ? `${domain}\\${user}` : user;
+}
+
+function icacls(file: string, args: string[]): { status: number | null; error?: Error } {
+  const result = spawnSync("icacls.exe", [path.resolve(file), ...args], { encoding: "utf8", windowsHide: true, timeout: 10_000 });
+  return { status: result.status, error: result.error };
+}
+
 export function restrictPrivateFile(file: string): void {
   if (process.platform !== "win32") { fs.chmodSync(file, 0o600); return; }
-  const result = windowsAcl(WINDOWS_PRIVATE_ACL, file);
-  if (result.error || result.status !== 0) throw new Error(`无法收紧 Windows 文件权限(${result.error?.message ?? `exit ${result.status}`})`);
+  const account = windowsAccount();
+  // 🔴 必须一条命令原子完成:先 /inheritance:r 单独执行会把 DACL 清空(继承 ACE 全没了、又没加新 ACE),
+  //    连 icacls 自己都打不开文件(实测拒绝访问),第二步永远失败。
+  //    单次调用内 icacls 先记下 /grant 的新 ACE、再断继承,结果 = 仅当前用户一条 FullControl。
+  const result = icacls(file, ["/inheritance:r", "/grant:r", `${account}:F`]);
+  if (result.error || result.status !== 0) {
+    throw new Error(`无法收紧 Windows 文件权限(${result.error?.message ?? `icacls exit ${result.status}`})`);
+  }
 }
 
 /** Request-path ACL setup must not block unrelated API requests on Windows. */
 export async function restrictPrivateFileAsync(file: string): Promise<void> {
   if (process.platform !== "win32") { await fs.promises.chmod(file, 0o600); return; }
+  const account = windowsAccount();
   await new Promise<void>((resolve, reject) => {
-    execFile("powershell.exe", ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", WINDOWS_PRIVATE_ACL],
-      { env: windowsAclEnv(file), encoding: "utf8", windowsHide: true, timeout: 10_000, killSignal: "SIGKILL" },
-      error => error ? reject(new Error("无法收紧 Windows 文件权限")) : resolve());
+    execFile("icacls.exe", [path.resolve(file), "/inheritance:r", "/grant:r", `${account}:F`],
+      { windowsHide: true, timeout: 10_000 },
+      err => err ? reject(new Error("无法收紧 Windows 文件权限")) : resolve());
   });
 }
 

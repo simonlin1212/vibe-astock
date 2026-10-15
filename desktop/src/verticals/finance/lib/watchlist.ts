@@ -8,22 +8,34 @@ import { backend, type LedgerRecord } from "./backend.ts";
 import { normalizeMarketSymbol } from "./marketSymbol.ts";
 
 let cache: string[] = [];
+/** 台账里记住的 名称 → 行情没回来时兜底显示（用户导入过名称的股票不该显示成代码）。
+ *  只在 hydrateWatch 提交，与 cache 同步刷新；其他路径不许顺手改它。 */
+let names = new Map<string, string>();
 /** 已经排进队、还没写进台账的「加一只」：重读台账时补回缓存，别的页面这时读到的列表里也有它 */
 const pending = new Set<string>();
 
-/** 台账里当前的 代码 → 记录 id。同一代码有多条时保留第一条，其余当重复处理 */
-async function currentIds(): Promise<{ ids: Map<string, string>; dupes: string[] }> {
+/** 台账里当前的 代码 → 记录 id / 名称。同一代码有多条时保留第一条，其余当重复处理。
+ *  纯查询：不碰任何模块级状态（names 的提交只发生在 hydrateWatch）。 */
+async function currentIds(): Promise<{ ids: Map<string, string>; dupes: string[]; names: Map<string, string> }> {
   const led = await backend.ledger();
   const rows: LedgerRecord[] = led.records.watch ?? [];
   const ids = new Map<string, string>();
   const dupes: string[] = [];
+  const fresh = new Map<string, string>();
   for (const r of rows) {
     const c = normalizeMarketSymbol(r.symbol);
     if (!c) continue;
+    const nm = typeof r.name === "string" ? r.name : null;
+    if (nm && !fresh.has(c)) fresh.set(c, nm);
     if (ids.has(c)) dupes.push(r.id);
     else ids.set(c, r.id);
   }
-  return { ids, dupes };
+  return { ids, dupes, names: fresh };
+}
+
+/** 台账里该代码的名称；没有则 null（调用方再往代码兜底） */
+export function watchNameOf(code: string): string | null {
+  return names.get(code) ?? null;
 }
 
 /**
@@ -33,9 +45,10 @@ async function currentIds(): Promise<{ ids: Map<string, string>; dupes: string[]
 let seq = 0;
 export async function hydrateWatch(): Promise<void> {
   const mine = ++seq;
-  const { ids } = await currentIds();
+  const { ids, names: fresh } = await currentIds();
   if (mine !== seq) return;   // 期间又发生了一次 hydrate,以更晚那次为准
   cache = [...ids.keys(), ...[...pending].filter((c) => !ids.has(c))];
+  names = fresh;
 }
 
 /** ⚠️ 返回**副本**:直接交出内部数组的话,调用方一个 `sort()` / `push()` 就改了缓存而没写台账 */

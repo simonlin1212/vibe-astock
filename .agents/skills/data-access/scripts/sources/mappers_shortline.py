@@ -19,6 +19,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from sources.mappers import empty, ev, out  # noqa: E402
 from sources.shortline_boards import render_board_ladder, render_theme_rotation  # noqa: E402
 from sources.shortline_emotion import render_cycle, render_daily, render_metrics, render_settled  # noqa: E402
+from sources.shortline_extra import render_extra  # noqa: E402
+from sources.shortline_state import render as render_state  # noqa: E402
 from sources.shortline_facts import render_facts  # noqa: E402
 from sources.shortline_live import render_live  # noqa: E402
 from sources.shortline_structure import POOLS, render_structure  # noqa: E402
@@ -586,3 +588,87 @@ def shortline_theme_rotation_map(result: dict, ctx: dict) -> dict:
              "computation": _computation("shortline_boards.build_theme_rotation", {"date": day, "days": result.get("days")},
                                          "每天的东财涨停池 + 问财(配了 IWENCAI_API_KEY)或同花顺涨停揭秘的涨停原因")}
     return a.finish(bool(result.get("settled")), extra, "题材轮动没算出来")
+
+
+# ---------------------------------------------------------------- 情绪周期状态机(移植)
+def shortline_state_map(result: dict, ctx: dict) -> dict:
+    """六态状态机(移植自开源复盘看板 v4c,经 Vibe AStock v2.0.0 duanxian/emotion_state)。
+
+    读数本身来自 cn_shortline_daily 同一口径的 daily_readings,这里不重复出
+    涨停数 / 炸板率等读数证据(同一天同名字段在别的端点里已有);状态机只出
+    自己的增量:S 综合分、候选态 / 确认态、近 20 天确认态轨迹。
+    """
+    if not result:
+        return empty("情绪状态机计算为空")
+    day = result["date"]
+    if not result.get("available"):
+        return empty(f"情绪状态机不可用:{result.get('reason', '未知')}")
+    a = _Acc(ctx, day)
+    n = ("综合情绪分 S:组内平均、组间加权的历史 rank 分位合成(0-100),"
+         "分位基线 " + str(result.get("sample_days")) + " 个交易日;"
+         "阈值沿用 dashboard 冻结值,样本通常不足以真正标定")
+    a.num("emotion_s", result.get("s"), "分位", note=n)
+    a.text("emotion_state_candidate", result.get("candidate"),
+           note="候选态(六态:冰点/退潮/分歧/高潮/启动/发酵;防御优先)")
+    a.text("emotion_state_confirmed", result.get("confirmed"),
+           note="确认态:转防御立即生效,转进攻需 T+1 与前一候选态一致(加仓要确认,减仓不等待)")
+    a.num("emotion_state_sample_days", result.get("sample_days"), "个交易日",
+          note=f"请求 {result.get('requested_days')} 天,实际可用 {result.get('sample_days')} 天;判定下限 {result.get('min_baseline')} 天")
+    for h in result.get("history") or []:
+        if h.get("state"):
+            a.text("emotion_state_day", h["state"], period=h["date"], note="当日确认态")
+        if h.get("s_pct") is not None:
+            a.num("emotion_state_day_s", h["s_pct"], "分位", period=h["date"], note="当日综合情绪分")
+    if not result.get("baseline_ok"):
+        a.degraded.append(f"分位基线不足({result.get('sample_days')} < {result.get('min_baseline')} 个交易日),状态仅供参考")
+    extra = {"date": day, "settled": result.get("settled"), "text": render_state(result), "result": result,
+             "computation": _computation("shortline_state.build_state",
+                                         {"date": day, "days": result.get("requested_days")},
+                                         "六项读数逐日取东财涨停 / 炸板 / 昨日涨停池(daily_readings 同口径)")}
+    return a.finish(bool(result.get("settled")), extra, "情绪状态机没算出来")
+
+
+# ---------------------------------------------------------------- 盘外增强源(移植)
+def shortline_extra_map(result: dict, ctx: dict) -> dict:
+    """开盘啦 / 短线侠 / hhxg 三路盘外读数,各块独立可用。
+
+    🔴 三家都只有**当下**(KPL 按日期回显核对、短线侠仅当日实时、hhxg 仅最新
+    一期),新鲜度靠注册表 cache_max_age_sec;目标日不是今天时三块都按缺数报。
+    口径与主取数层(东财池 / 问财)不同,证据字段一律带 extra_ 前缀防混用。
+    """
+    if not result:
+        return empty("盘外增强读数为空")
+    day = result["date"]
+    a = _Acc(ctx, day)
+
+    k: dict = result.get("kpl_mood") or {}
+    if a.block("kpl_mood", k):
+        n = f"开盘啦 App 接口({k.get('date', '')} 场次,日期回显已核对);与东财池口径不同,只作交叉参考"
+        a.num("extra_kpl_limit_up_count", k.get("limit_up_count"), "只", note=n)
+        a.num("extra_kpl_max_consec_boards", k.get("max_consec_boards"), "板", note=n)
+        a.num("extra_kpl_sentiment", k.get("sentiment"), "值", note=n + ";KPL 自有情绪值,没有绝对含义")
+        a.num("extra_kpl_drawdown_count", k.get("drawdown_count"), "只", note=n + ";当日大幅回撤家数")
+        a.text("extra_kpl_tip", k.get("tip"), note="KPL 端提示语,原样透传")
+
+    z: dict = result.get("ztlive") or {}
+    if a.block("ztlive", z):
+        n = "短线侠涨停播报(仅当日实时,条目无日期字段);涨停原因是源站编辑归因,题材串与问财不同源"
+        a.num("extra_ztlive_count", z.get("count"), "只", note=n)
+        for r in z.get("rows") or []:
+            a.text("extra_ztlive_stock", f"{r['name']}（{r['code']}）｜{r['boards'] or '—'}板｜{r['time'] or '—'}｜{r['reason'] or '原因未取到'}",
+                   key=r["code"], note=n)
+
+    h: dict = result.get("theme_heat") or {}
+    if a.block("theme_heat", h):
+        n = f"hhxg 题材热度榜({h.get('date', '')} 这一期,仅最新、无历史路径);schema v3:yz=溢价、zt=涨停家数、ratio=占比"
+        for it in h.get("items") or []:
+            k_key = it["name"]
+            a.num("extra_theme_limit_up", it.get("limit_up"), "只", key=k_key, note=n)
+            a.num("extra_theme_premium", it.get("premium"), "%", key=k_key, note=n)
+            a.num("extra_theme_ratio", it.get("ratio"), "小数", key=k_key, note=n)
+    if not result.get("is_today"):
+        a.degraded.append(f"盘外三源都只有当下数据,目标日 {day} 不是今天,全部按缺数处理")
+    extra = {"date": day, "settled": result.get("settled"), "text": render_extra(result), "result": result,
+             "computation": _computation("shortline_extra.build_extra", {"date": day},
+                                         "盘外三源:开盘啦 App 接口 + 短线侠涨停播报 + hhxg 题材热度榜")}
+    return a.finish(True, extra, "盘外三路读数都不可用")

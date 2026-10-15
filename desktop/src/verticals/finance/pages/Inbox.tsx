@@ -57,10 +57,11 @@ function JobRow({ job, busy, onToggle, onTime, onRun }: { job: NotifyJob; busy: 
   </div>;
 }
 
-function AddWebhook({ onAdd }: { onAdd: (b: { kind: WebhookKind; url: string; secret: string; label: string }) => Promise<boolean> }) {
+function AddWebhook({ onAdd }: { onAdd: (b: { kind: WebhookKind; url: string; secret: string; uid: string; label: string }) => Promise<boolean> }) {
   const [kind, setKind] = useState<WebhookKind>("feishu");
   const [url, setUrl] = useState("");
   const [secret, setSecret] = useState("");
+  const [uid, setUid] = useState("");
   const [label, setLabel] = useState("");
   const [saving, setSaving] = useState(false);
   const meta = WEBHOOK_KINDS.find((k) => k.kind === kind)!;
@@ -68,19 +69,24 @@ function AddWebhook({ onAdd }: { onAdd: (b: { kind: WebhookKind; url: string; se
     e.preventDefault();
     setSaving(true);
     // 地址只在这次请求里带上;加成功就清空输入框,页面上不留原文
-    if (await onAdd({ kind, url, secret, label })) { setUrl(""); setSecret(""); setLabel(""); }
+    if (await onAdd({ kind, url, secret, uid, label })) { setUrl(""); setSecret(""); setUid(""); setLabel(""); }
     setSaving(false);
   }}>
     <div className="flex flex-wrap gap-2">
-      <select aria-label="机器人类型" value={kind} onChange={(e) => { setKind(e.target.value as WebhookKind); setSecret(""); }} className={cn(INPUT, "py-1.5")}>
+      <select aria-label="机器人类型" value={kind} onChange={(e) => { setKind(e.target.value as WebhookKind); setSecret(""); setUid(""); }} className={cn(INPUT, "py-1.5")}>
         {WEBHOOK_KINDS.map((k) => <option key={k.kind} value={k.kind}>{k.label}</option>)}
       </select>
       <input aria-label="备注名" value={label} onChange={(e) => setLabel(e.target.value)} placeholder="备注名(可不填,如:投研群)" maxLength={40} className={cn(INPUT, "min-w-40 flex-1 py-1.5")} />
     </div>
-    <input aria-label="Webhook 地址" type="password" autoComplete="off" spellCheck={false} value={url} onChange={(e) => setUrl(e.target.value)}
-      placeholder={`${meta.label}机器人的 Webhook 地址`} className={cn(INPUT, "w-full py-1.5 font-mono")} />
+    {kind === "wxpusher"
+      ? <input aria-label="API 地址" type="url" autoComplete="off" spellCheck={false} value={url} onChange={(e) => setUrl(e.target.value)}
+          placeholder={secret.trim().startsWith("SPT_") ? "https://wxpusher.zjiecode.com/api/send/message/simple-push" : "https://wxpusher.zjiecode.com/api/send/message"} className={cn(INPUT, "w-full py-1.5 font-mono")} />
+      : <input aria-label="Webhook 地址" type="password" autoComplete="off" spellCheck={false} value={url} onChange={(e) => setUrl(e.target.value)}
+          placeholder={`${meta.label}机器人的 Webhook 地址`} className={cn(INPUT, "w-full py-1.5 font-mono")} />}
     {meta.signLabel && <input aria-label={meta.signLabel} type="password" autoComplete="off" spellCheck={false} value={secret} onChange={(e) => setSecret(e.target.value)}
-      placeholder={`${meta.signLabel}(可不填)`} className={cn(INPUT, "w-full py-1.5 font-mono")} />}
+      placeholder={kind === "wxpusher" ? meta.signLabel : `${meta.signLabel}(可不填)`} className={cn(INPUT, "w-full py-1.5 font-mono")} />}
+    {meta.uidLabel && <input aria-label={meta.uidLabel} autoComplete="off" spellCheck={false} value={uid} onChange={(e) => setUid(e.target.value)}
+      placeholder={kind === "wxpusher" ? meta.uidLabel : `${meta.uidLabel}(必填)`} className={cn(INPUT, "w-full py-1.5 font-mono")} />}
     <p className="text-[11px] leading-5 text-muted-foreground">{meta.hint} 只用「自定义关键词」校验时,消息可能被平台拒收。</p>
     <button type="submit" disabled={saving || !url.trim()} className={BTN}><Plus className="h-3.5 w-3.5" />{saving ? "添加中…" : "添加"}</button>
   </form>;
@@ -201,7 +207,7 @@ export function Inbox() {
             {s!.webhooks.map((h) => <div key={h.id} className="flex flex-wrap items-center gap-3 rounded-xl border border-border/60 p-3">
               <Switch on={h.enabled} label={`${h.enabled ? "停用" : "启用"}${h.label || h.kind_label}`} onChange={(v) => void act(`hook:${h.id}`, "webhooks/update", { id: h.id, enabled: v })} />
               <span className="text-sm">{h.label || h.kind_label}</span>
-              <span className="text-[11px] text-muted-foreground">{h.kind_label} · <span className="font-mono">{h.url}</span>{h.signed ? " · 已签名" : ""}</span>
+              <span className="text-[11px] text-muted-foreground">{h.kind_label} · <span className="font-mono">{h.url}</span>{h.uid ? ` · UID ${h.uid}` : ""}{h.signed ? " · 已签名" : ""}</span>
               <span className="ml-auto flex gap-2">
                 <button type="button" onClick={() => void test(h.id)} disabled={busy !== null} className={BTN}><Send className="h-3.5 w-3.5" />发送测试</button>
                 <button type="button" aria-label={`删除${h.label || h.kind_label}`} onClick={() => { if (confirm(`删除「${h.label || h.kind_label}」?`)) void act(`hook:${h.id}`, "webhooks/remove", { id: h.id }); }} disabled={busy !== null} className={cn(BTN, "hover:text-destructive")}><Trash2 className="h-3.5 w-3.5" /></button>
@@ -209,7 +215,7 @@ export function Inbox() {
               {testResult[h.id] && <p className="w-full text-[11px] text-foreground">{testResult[h.id]}</p>}
             </div>)}
           </div>
-          <AddWebhook onAdd={(b) => act("hook:add", "webhooks/add", { kind: b.kind, url: b.url.trim(), ...(b.secret.trim() ? { secret: b.secret.trim() } : {}), ...(b.label.trim() ? { label: b.label.trim() } : {}) })} />
+          <AddWebhook onAdd={(b) => act("hook:add", "webhooks/add", { kind: b.kind, url: b.url.trim(), ...(b.secret.trim() ? { secret: b.secret.trim() } : {}), ...(b.uid.trim() ? { uid: b.uid.trim() } : {}), ...(b.label.trim() ? { label: b.label.trim() } : {}) })} />
         </Section>
 
         <Section title="免打扰" icon={s!.quiet.enabled ? <BellOff className="h-4 w-4 text-primary" /> : <Bell className="h-4 w-4 text-primary" />}>

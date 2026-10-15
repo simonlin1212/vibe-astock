@@ -5,7 +5,7 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { useAiPage } from "../../../core/ai/pageContext";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { Disclaimer } from "@/components/ui/Disclaimer";
-import { loadWatch, saveWatch } from "@/lib/watchlist";
+import { loadWatch, saveWatch, watchNameOf } from "@/lib/watchlist";
 import { currencyOfSymbol, normalizeMarketSymbol } from "@/lib/marketSymbol";
 import { backend } from "@/lib/backend";
 import {
@@ -30,7 +30,7 @@ const LIVE_KEY = "vr-watchlist-live";
 type WatchQuote = ReturnType<typeof useLiveQuotes>["quotes"][string] | undefined;
 /** 自选总览的列：现价不同币种分开排（100 港元和 100 元不比大小），其余直接比 */
 const WATCH_COLS: { key: string; label: string; firstDir?: SortDir; right?: boolean; byCurrency?: boolean; value: (c: string, q: WatchQuote) => SortValue }[] = [
-  { key: "name", label: "名称", firstDir: "asc", value: (c, q) => q?.name || c },
+  { key: "name", label: "名称", firstDir: "asc", value: (c, q) => q?.name || watchNameOf(c) || c },
   { key: "code", label: "代码", firstDir: "asc", value: (c) => c },
   { key: "price", label: "现价", right: true, byCurrency: true, value: (_c, q) => q?.price },
   { key: "change_pct", label: "涨跌%", right: true, value: (_c, q) => q?.change_pct },

@@ -4478,6 +4478,58 @@
       },
       "cache_max_age_sec": 21600,
       "notes": "免 key 的 CSV 下载(不用要 key 的 API);只收单位核对过的 12 个系列(另有 GDP / M2SL / INDPRO / ICSA / T10Y2Y),版权受限的系列不收;默认取近 10 年;全序列存为提取 CSV,环比同比交给 calc"
+    },
+{
+      "market": [
+        "CN"
+      ],
+      "source": "eastmoney+calc",
+      "compliance": "cn-public",
+      "symbol_kind": "none",
+      "symbol_param": "code",
+      "stages": {},
+      "enabled": true,
+      "computed": true,
+      "libs": [],
+      "mapper_module": "mappers_shortline",
+      "id": "cn_shortline_state",
+      "title": "短线情绪周期状态机(六态:冰点/退潮/分歧/高潮/启动/发酵;加权 rank 分位合成 S + 候选态 + 非对称 T+1 确认,移植自开源复盘看板 v4c)",
+      "layer": "10 情绪",
+      "module": "shortline_state",
+      "function": "build_state",
+      "mapper": "shortline_state_map",
+      "endpoint_label": "push2ex 涨停 / 炸板 / 昨日涨停池 × N 日 → emotion_state",
+      "args": {
+        "date": null,
+        "days": 60
+      },
+      "notes": "计算型端点,移植自 Vibe AStock v2.0.0 duanxian/emotion_state(数据层从本地缓存改为逐日调 daily_readings,读数口径不变)。铁律:候选态防御优先;退潮带纯区间捕获;转防御立即生效、转进攻需 T+1 一致(加仓要确认,减仓不等待)。样本 < 30 个交易日只描述不判定(baseline_ok=False)。⚠️ 每天约 4 次东财请求,默认 60 天窗口 ≈ 240 次,首次很慢;已收盘日子池子不变但端点内直调不走取数服务缓存,每次现算。days 20–120。没收盘的那一天一律 partial(不缓存)"
+    },
+{
+      "market": [
+        "CN"
+      ],
+      "source": "eastmoney+calc",
+      "compliance": "cn-public",
+      "symbol_kind": "none",
+      "symbol_param": "code",
+      "stages": {},
+      "enabled": true,
+      "computed": true,
+      "libs": [],
+      "mapper_module": "mappers_shortline",
+      "id": "cn_shortline_extra",
+      "title": "盘外增强读数(开盘啦情绪值 / 短线侠涨停播报 / hhxg 题材热度榜;三路独立、口径各异,均只作主取数层的交叉参考)",
+      "layer": "10 情绪",
+      "module": "shortline_extra",
+      "function": "build_extra",
+      "mapper": "shortline_extra_map",
+      "endpoint_label": "apphq.longhuvip.com + duanxianxia.cn + hhxg.top → extra_sources",
+      "args": {
+        "date": null
+      },
+      "cache_max_age_sec": 60,
+      "notes": "计算型端点,移植自 Vibe AStock v2.0.0 duanxian/extra_sources。🔴 三家都只有**当下**:KPL 情绪按 Day 回显逐次核对、短线侠涨停播报仅当日实时(条目无日期字段、免费通道限流 ≥10 秒/次)、hhxg 仅最新一期(无历史路径);目标日不是今天时三块都按缺数如实报。与主层口径不同,证据字段一律 extra_ 前缀;一块挂了不影响另外两块(各自进 missing)。缓存最多 60 秒"
     }
   ]
 }

@@ -80,6 +80,52 @@ test("Windows 路径与环境:Scripts venv、反斜杠、用户目录和 PATHEXT
   }
 });
 
+test("Windows npm shim 指向原生 exe 时(Claude Code 形态)直接 spawn 该 exe", () => {
+  const npmBin = temp();
+  const ps1 = path.join(npmBin, "claude.ps1");
+  const exe = path.join(npmBin, "node_modules/@anthropic-ai/claude-code/bin/claude.exe");
+  fs.mkdirSync(path.dirname(exe), { recursive: true });
+  fs.writeFileSync(exe, "MZ fake exe");
+  // 与本机 claude.ps1 同构：shebang + basedir + 直调 $basedir 下的 .exe
+  fs.writeFileSync(ps1, '#!/usr/bin/env pwsh\n$basedir=Split-Path $MyInvocation.MyCommand.Definition -Parent\n\n$exe=""\nif ($PSVersionTable.PSVersion -lt "6.0" -or $IsWindows) {\n  $exe=".exe"\n}\nif ($MyInvocation.ExpectingInput) {\n  $input | & "$basedir/node_modules/@anthropic-ai/claude-code/bin/claude.exe"   $args\n} else {\n  & "$basedir/node_modules/@anthropic-ai/claude-code/bin/claude.exe"   $args\n}\nexit $LASTEXITCODE\n');
+  const launch = executableInvocation(ps1, ["--version"], {}, "win32");
+  assert.equal(launch.file, exe, "exe 型 shim 必须解析出真实 exe 路径并直接 spawn（不经 shell）");
+  assert.deepEqual(launch.args, ["--version"]);
+  // 目标文件不存在 / 含插值字符 / 非 exe 目标 → 一律仍按不支持拒绝
+  fs.rmSync(exe);
+  assert.throws(() => executableInvocation(ps1, ["--version"], {}, "win32"), /标准 npm|原生/);
+  fs.writeFileSync(exe, "MZ fake exe");
+  fs.writeFileSync(ps1, '#!/usr/bin/env pwsh\n$basedir=Split-Path $MyInvocation.MyCommand.Definition -Parent\n& "$basedir/node_modules/x/bin/$($env:EVIL).exe" $args\n');
+  assert.throws(() => executableInvocation(ps1, ["--version"], {}, "win32"), /标准 npm|原生/,
+    "目标带插值字符的 shim 不得被执行");
+});
+
+test("Windows npm shim 指向无扩展名 node 入口时(CodeBuddy 形态)用 node 运行该入口", () => {
+  const npmBin = temp();
+  const ps1 = path.join(npmBin, "codebuddy.ps1");
+  const entry = path.join(npmBin, "node_modules/@tencent-ai/codebuddy-code/bin/codebuddy");
+  fs.mkdirSync(path.dirname(entry), { recursive: true });
+  fs.writeFileSync(entry, "#!/usr/bin/env node\nconsole.log(JSON.stringify(process.argv.slice(2)));\n");
+  // 与本机 codebuddy.ps1 同构：Test-Path 分支 + 无扩展名入口目标
+  fs.writeFileSync(ps1, '#!/usr/bin/env pwsh\n$basedir=Split-Path $MyInvocation.MyCommand.Definition -Parent\n\n$exe=""\nif ($PSVersionTable.PSVersion -lt "6.0" -or $IsWindows) {\n  $exe=".exe"\n}\n$ret=0\nif (Test-Path "$basedir/node$exe") {\n  if ($MyInvocation.ExpectingInput) {\n    $input | & "$basedir/node$exe"  "$basedir/node_modules/@tencent-ai/codebuddy-code/bin/codebuddy" $args\n  } else {\n    & "$basedir/node$exe"  "$basedir/node_modules/@tencent-ai/codebuddy-code/bin/codebuddy" $args\n  }\n  $ret=$LASTEXITCODE\n} else {\n  & "node$exe"  "$basedir/node_modules/@tencent-ai/codebuddy-code/bin/codebuddy" $args\n}\nexit $ret\n');
+  const launch = executableInvocation(ps1, ["--version"], {}, "win32");
+  assert.equal(launch.file, process.execPath, "无扩展名 node 入口必须用 node 运行");
+  assert.equal(launch.args[0], entry);
+  // 入口内容不是 node shebang（比如随手一个文本文件）→ 仍然拒绝
+  fs.writeFileSync(entry, "not a node script\n");
+  assert.throws(() => executableInvocation(ps1, ["--version"], {}, "win32"), /标准 npm|原生/);
+  // shebang 收紧：node 前必须是 / 或空格（"xx-node-thing" 不算指向 node）
+  fs.writeFileSync(entry, "#!/usr/bin/env xx-node-thing\nconsole.log(1);\n");
+  assert.throws(() => executableInvocation(ps1, ["--version"], {}, "win32"), /标准 npm|原生/,
+    "伪 node shebang（xx-node-thing）不得放行");
+  // 入口带 UTF-8 BOM 不应误拒
+  fs.writeFileSync(entry, "\uFEFF#!/usr/bin/env node\nconsole.log(1);\n");
+  assert.doesNotThrow(() => executableInvocation(ps1, ["--version"], {}, "win32"));
+  // shim 自身带 BOM 也不应误拒
+  fs.writeFileSync(ps1, "\uFEFF" + '#!/usr/bin/env pwsh\n$basedir=Split-Path $MyInvocation.MyCommand.Definition -Parent\n& "node$exe"  "$basedir/node_modules/@tencent-ai/codebuddy-code/bin/codebuddy" $args\nexit $ret\n');
+  assert.doesNotThrow(() => executableInvocation(ps1, ["--version"], {}, "win32"));
+});
+
 // v1 的「Codex config.toml 隔离投影」与「研究线程关 Shell / 只读沙箱」两条已移到 local_agent_runtime.test.ts:
 // v2 的 Codex 用 --ignore-user-config 根本不读用户配置,参数在各平台一致,不再需要按平台单独验证。
 

@@ -6,7 +6,7 @@ import { test } from "node:test";
 
 import {
   checkWebhookUrl, dingtalkSign, feishuSign, inQuietHours, localClock, maskWebhookUrl, messageText, notifyAction, notifyOverview,
-  scrubSecrets, tick, uiBase, validateSchedule, type GateResult, type JobContext, type JobResult, type ScheduleDef,
+  scrubSecrets, tick, uiBase, validateSchedule, webhookRequest, type GateResult, type JobContext, type JobResult, type ScheduleDef,
 } from "../src/notify.ts";
 import { ServiceError, type ServiceContext } from "../src/service.ts";
 import { UI_PORT } from "../src/brand.ts";
@@ -580,4 +580,123 @@ test("🔴 队列跑过午夜就停:周五的开市判定不带到周六,剩下�
   } finally {
     clean(ctx);
   }
+});
+
+// ---------------------------------------------------------------- WxPusher 渠道
+const WXP_URL = "https://wxpusher.zjiecode.com/api/send/message";
+const WXP_TOKEN = "AT_qhwTF1LMQPeSGCjXPsLLBhhhRaN2";
+const WXP_UID = "73642";
+
+test("WxPusher 只认官方 API 地址,凭据必须走 appToken + UID", () => {
+  assert.equal(checkWebhookUrl("wxpusher", WXP_URL), WXP_URL);
+  // 地址上带任何参数都不收:凭据不能放进 URL(它会被回显 / 打码 / 记日志)
+  assert.equal(checkWebhookUrl("wxpusher", `${WXP_URL}?appToken=x`), null);
+  assert.equal(checkWebhookUrl("wxpusher", "https://wxpusher.zjiecode.com/api/send/message/simple"), null);
+  assert.equal(checkWebhookUrl("wxpusher", WXP_URL.replace("https:", "http:")), null);
+  assert.equal(checkWebhookUrl("wxpusher", "https://evil.example/api/send/message"), null);
+});
+
+test("WxPusher 请求体:appToken + uids + content,超长按 500 字截断", () => {
+  const hook = { id: "t", kind: "wxpusher" as const, url: WXP_URL, secret: WXP_TOKEN, uid: WXP_UID, label: "", enabled: true };
+  const now = new Date("2026-10-14T08:00:00Z");
+  const body = webhookRequest(hook, messageText({ title: "测试", lines: ["一行"] }), now).body;
+  assert.equal(body.appToken, WXP_TOKEN);
+  assert.deepEqual(body.uids, [WXP_UID]);
+  assert.equal(body.contentType, 1);
+  assert.match(String(body.content), /^【测试】/);
+  assert.ok(String(body.summary).length <= 100);
+  // 600 个汉字 → 截到 500 字以内并带「见收件箱」尾巴
+  const long = "汉".repeat(600);
+  const clipped = webhookRequest(hook, long, now).body;
+  assert.ok([...String(clipped.content)].length <= 500);
+  assert.match(String(clipped.content), /完整内容见收件箱/);
+  assert.equal(String(clipped.summary).length <= 100, true);
+});
+
+test("WxPusher 添加:appToken 与 UID 必填,回显打码地址与 UID 但不回显 appToken", async () => {
+  const ctx = tmpCtx();
+  try {
+    const h = harness();
+    const WXP = `${WXP_URL}`;
+    await assert.rejects(
+      notifyAction(ctx, "webhooks/add", { kind: "wxpusher", url: WXP }, { def: h.def }),
+      (e: unknown) => e instanceof ServiceError && e.code === "bad_request" && /appToken/.test(e.message),
+    );
+    await assert.rejects(
+      notifyAction(ctx, "webhooks/add", { kind: "wxpusher", url: WXP, secret: WXP_TOKEN }, { def: h.def }),
+      (e: unknown) => e instanceof ServiceError && /UID/.test(e.message),
+    );
+    await assert.rejects(
+      notifyAction(ctx, "webhooks/add", { kind: "wxpusher", url: WXP, secret: WXP_TOKEN, uid: "不是合法UID!" }, { def: h.def }),
+      (e: unknown) => e instanceof ServiceError && /UID/.test(e.message),
+    );
+    const ov = await notifyAction(ctx, "webhooks/add", { kind: "wxpusher", url: WXP, secret: WXP_TOKEN, uid: WXP_UID, label: "微信推送" }, { def: h.def }) as ReturnType<typeof notifyOverview>;
+    const hook = ov.settings.webhooks[0]!;
+    assert.equal(hook.kind, "wxpusher");
+    assert.equal(hook.kind_label, "WxPusher");
+    assert.equal(hook.uid, WXP_UID);            // UID 不是凭据,明面显示方便辨认
+    assert.doesNotMatch(JSON.stringify(ov), /AT_qhwTF1LMQPeSGCjXPsLLBhhhRaN2/); // appToken 绝不回显
+    assert.equal(hook.signed, false, "WxPusher 不是签名,别显示成已签名");
+    // 别的渠道带 UID → 拒绝
+    await assert.rejects(
+      notifyAction(ctx, "webhooks/add", { kind: "wecom", url: WECOM, uid: WXP_UID }, { def: h.def }),
+      (e: unknown) => e instanceof ServiceError && /UID/.test(e.message),
+    );
+  } finally { clean(ctx); }
+});
+
+test("WxPusher 发送:code 1000 才算成功;错误信息里抹掉 appToken 和 UID", async () => {
+  const ctx = tmpCtx();
+  try {
+    const h = harness();
+    const ov = await notifyAction(ctx, "webhooks/add", { kind: "wxpusher", url: WXP_URL, secret: WXP_TOKEN, uid: WXP_UID }, { def: h.def }) as ReturnType<typeof notifyOverview>;
+    const hookId = ov.settings.webhooks[0]!.id;
+    const calls: { url: string; body: Record<string, unknown> }[] = [];
+    const deps = { fetch: fakeFetch(calls, () => ({ status: 200, body: { code: 1000, msg: "处理成功", data: [] } })), sleep: async () => undefined };
+    const out = await notifyAction(ctx, "test", { channel: hookId }, { def: h.def, deps }) as { channel: string; ok: boolean };
+    assert.equal(out.ok, true);
+    assert.equal(calls[0]!.url, WXP_URL);
+    assert.equal(calls[0]!.body.appToken, WXP_TOKEN);
+    assert.deepEqual(calls[0]!.body.uids, [WXP_UID]);
+    // 平台拒绝(错误的 appToken):错误文字里不能带凭据
+    const calls2: { url: string; body: Record<string, unknown> }[] = [];
+    const bad = await notifyAction(ctx, "test", { channel: hookId }, { def: h.def, deps: { fetch: fakeFetch(calls2, () => ({ status: 200, body: { code: 2000, msg: `appToken ${WXP_TOKEN} 无效, uid ${WXP_UID}` } })), sleep: async () => undefined } }) as { ok: boolean; error: string };
+    assert.equal(bad.ok, false);
+    assert.doesNotMatch(bad.error, /AT_qhwTF1LMQPeSGCjXPsLLBhhhRaN2/);
+    assert.doesNotMatch(bad.error, new RegExp(WXP_UID));
+  } finally { clean(ctx); }
+});
+
+test("WxPusher SPT 模式:simple-push 地址配 SPT 令牌,不用 UID", async () => {
+  const SPT = "SPT_zcrp4hdu4Bo2yzMab7rtpqvbXjf1";
+  const SIMPLE = "https://wxpusher.zjiecode.com/api/send/message/simple-push";
+  assert.equal(checkWebhookUrl("wxpusher", SIMPLE), SIMPLE);
+  // 请求体:spt 字段,没有 uids
+  const hook = { id: "t", kind: "wxpusher" as const, url: SIMPLE, secret: SPT, label: "", enabled: true };
+  const body = webhookRequest(hook, "【测试】一行", new Date("2026-10-14T08:00:00Z")).body;
+  assert.equal(body.spt, SPT);
+  assert.equal("uids" in body, false);
+  assert.equal(body.contentType, 1);
+  // 添加:混着配(地址/凭据不成对)必须拒绝
+  const ctx = tmpCtx();
+  try {
+    const h = harness();
+    await assert.rejects(
+      notifyAction(ctx, "webhooks/add", { kind: "wxpusher", url: WXP_URL, secret: SPT }, { def: h.def }),
+      (e: unknown) => e instanceof ServiceError && /simple-push/.test(e.message),
+    );
+    await assert.rejects(
+      notifyAction(ctx, "webhooks/add", { kind: "wxpusher", url: SIMPLE, secret: WXP_TOKEN }, { def: h.def }),
+      (e: unknown) => e instanceof ServiceError && /appToken 要把地址填成/.test(e.message),
+    );
+    const ov = await notifyAction(ctx, "webhooks/add", { kind: "wxpusher", url: SIMPLE, secret: SPT, label: "SPT 推送" }, { def: h.def }) as ReturnType<typeof notifyOverview>;
+    assert.equal(ov.settings.webhooks[0]!.kind, "wxpusher");
+    assert.doesNotMatch(JSON.stringify(ov), /SPT_zcrp4hdu4Bo2yzMab7rtpqvbXjf1/); // SPT 令牌不回显
+    // 发送成功
+    const calls: { url: string; body: Record<string, unknown> }[] = [];
+    const out = await notifyAction(ctx, "test", { channel: ov.settings.webhooks[0]!.id }, { def: h.def, deps: { fetch: fakeFetch(calls, () => ({ status: 200, body: { code: 1000, msg: "处理成功" } })), sleep: async () => undefined } }) as { ok: boolean };
+    assert.equal(out.ok, true);
+    assert.equal(calls[0]!.url, SIMPLE);
+    assert.equal(calls[0]!.body.spt, SPT);
+  } finally { clean(ctx); }
 });

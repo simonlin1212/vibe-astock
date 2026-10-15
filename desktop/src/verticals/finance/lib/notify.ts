@@ -16,9 +16,9 @@ export interface NotifyJob {
   running: boolean;
 }
 
-export type WebhookKind = "feishu" | "wecom" | "dingtalk";
+export type WebhookKind = "feishu" | "wecom" | "dingtalk" | "wxpusher";
 
-export interface NotifyWebhook { id: string; kind: WebhookKind; kind_label: string; label: string; enabled: boolean; url: string; signed: boolean }
+export interface NotifyWebhook { id: string; kind: WebhookKind; kind_label: string; label: string; enabled: boolean; url: string; signed: boolean; uid: string | null }
 
 export interface InboxItem { id: string; at: string; job: string; job_label: string; title: string; lines: string[]; link?: string; read: boolean; kind: "message" | "notice" }
 
@@ -56,13 +56,15 @@ export function jobStatusLabel(job: Pick<NotifyJob, "status" | "running">): { te
   }
 }
 
-export const WEBHOOK_KINDS: { kind: WebhookKind; label: string; signLabel: string | null; hint: string }[] = [
+export const WEBHOOK_KINDS: { kind: WebhookKind; label: string; signLabel: string | null; uidLabel?: string; hint: string }[] = [
   { kind: "feishu", label: "飞书", signLabel: "签名校验密钥",
     hint: "群设置 → 群机器人 → 添加机器人 → 自定义机器人,复制 Webhook 地址。建议在「安全设置」里开「签名校验」,把密钥一起填上。" },
   { kind: "wecom", label: "企业微信", signLabel: null,
     hint: "群聊右上角 → 消息推送(群机器人)→ 添加,复制 Webhook 地址。企业微信没有签名,地址本身就能发消息,别发给别人。" },
   { kind: "dingtalk", label: "钉钉", signLabel: "加签密钥(SEC 开头)",
     hint: "群设置 → 机器人 → 添加机器人 → 自定义,复制 Webhook 地址。建议安全设置选「加签」,把 SEC 开头的密钥一起填上。" },
+  { kind: "wxpusher", label: "WxPusher", signLabel: "appToken 或 SPT 个人令牌", uidLabel: "UID(标准方式必填)",
+    hint: "微信公众号推送,两种凭据二选一:① 最简 —— 微信关注「wxpusher」公众号,菜单「个人推送」页复制 SPT 令牌,地址填 https://wxpusher.zjiecode.com/api/send/message/simple-push;② 标准 —— 官网后台创建应用拿 appToken(AT_ 开头),地址填 https://wxpusher.zjiecode.com/api/send/message,并填上公众号「我的→我的UID」里的 UID。" },
 ];
 
 /** 本地时间显示(收件箱时间是 UTC ISO) */

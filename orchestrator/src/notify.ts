@@ -120,9 +120,9 @@ export function validateSchedule(def: ScheduleDef): void {
 
 // ---------------------------------------------------------------- 存储
 
-export type WebhookKind = "feishu" | "wecom" | "dingtalk";
+export type WebhookKind = "feishu" | "wecom" | "dingtalk" | "wxpusher";
 
-interface Webhook { id: string; kind: WebhookKind; url: string; secret?: string; label: string; enabled: boolean }
+interface Webhook { id: string; kind: WebhookKind; url: string; secret?: string; label: string; enabled: boolean; uid?: string }
 
 interface Settings {
   version: 1;
@@ -223,7 +223,20 @@ export function loadSettings(dataRoot: string): Settings {
     webhooks: hooks.map((h): Webhook => {
       if (!isObj(h) || typeof h.id !== "string" || typeof h.url !== "string" || !isKind(h.kind)) return corrupt("settings");
       if (checkWebhookUrl(h.kind, h.url) === null) return corrupt("settings");
-      return { id: h.id, kind: h.kind, url: h.url, ...(typeof h.secret === "string" && h.secret ? { secret: h.secret } : {}),
+      const secret = typeof h.secret === "string" && h.secret ? h.secret : undefined;
+      const uid = typeof h.uid === "string" && h.uid ? h.uid : undefined;
+      // WxPusher 两种凭据二选一、地址必须配对(混着配发不出去,按损坏处理):
+      //   SPT 个人令牌(SPT_ 开头)→ simple-push 地址,不用 uid(最简,推荐)
+      //   标准方式 appToken → message 地址 + 必填 uid
+      if (h.kind === "wxpusher") {
+        if (!secret) return corrupt("settings");
+        const spt = secret.startsWith("SPT_");
+        if (spt !== h.url.endsWith("/message/simple-push")) return corrupt("settings");
+        if (!spt && (!uid || !WXPUSHER_UID_RE.test(uid))) return corrupt("settings");
+      } else if (uid !== undefined) {
+        return corrupt("settings");
+      }
+      return { id: h.id, kind: h.kind, url: h.url, ...(secret ? { secret } : {}), ...(uid ? { uid } : {}),
         label: typeof h.label === "string" ? h.label.slice(0, 40) : "", enabled: h.enabled !== false };
     }),
     jobs: isObj(raw.jobs) ? Object.fromEntries(Object.entries(raw.jobs).flatMap(([k, v]) => (JOB_ID.test(k) && isObj(v)
@@ -324,9 +337,14 @@ const WEBHOOK_RULES: Record<WebhookKind, { label: string; hosts: string[]; path:
   feishu: { label: "飞书", hosts: ["open.feishu.cn", "open.larksuite.com"], path: /^\/open-apis\/bot\/v2\/hook\/[A-Za-z0-9-]{8,80}$/ },
   wecom: { label: "企业微信", hosts: ["qyapi.weixin.qq.com"], path: /^\/cgi-bin\/webhook\/send$/, query: "key" },
   dingtalk: { label: "钉钉", hosts: ["oapi.dingtalk.com"], path: /^\/robot\/send$/, query: "access_token" },
+  // WxPusher(微信公众号推送):凭据是 body 里的 appToken(SPT 个人令牌走 simple-push),订阅者用 uid 指定 —— 地址本身不含凭据
+  wxpusher: { label: "WxPusher", hosts: ["wxpusher.zjiecode.com"], path: /^\/api\/send\/message(?:\/simple-push)?$/ },
 };
 
-const isKind = (v: unknown): v is WebhookKind => v === "feishu" || v === "wecom" || v === "dingtalk";
+const isKind = (v: unknown): v is WebhookKind => v === "feishu" || v === "wecom" || v === "dingtalk" || v === "wxpusher";
+
+/** WxPusher 订阅者 UID(官方 app 里「UID」一段字母数字) */
+export const WXPUSHER_UID_RE = /^[A-Za-z0-9_-]{4,64}$/;
 
 /**
  * 只接受三家官方机器人地址(https + 固定域名 + 固定路径)。
@@ -338,7 +356,7 @@ export function checkWebhookUrl(kind: WebhookKind, raw: string): string | null {
   const rule = WEBHOOK_RULES[kind];
   if (u.protocol !== "https:" || u.username || u.password || u.port || !rule.hosts.includes(u.hostname) || !rule.path.test(u.pathname)) return null;
   if (rule.query && !/^[A-Za-z0-9_-]{8,128}$/.test(u.searchParams.get(rule.query) ?? "")) return null;
-  if (kind === "feishu" && u.search) return null;
+  if ((kind === "feishu" || kind === "wxpusher") && u.search) return null;
   return u.toString();
 }
 
@@ -352,7 +370,7 @@ export function maskWebhookUrl(url: string): string {
 }
 
 /** 错误文字里去掉地址、key、签名密钥 —— 平台回包、网络错误都可能把它们带出来 */
-export function scrubSecrets(text: string, hook?: Pick<Webhook, "url" | "secret">): string {
+export function scrubSecrets(text: string, hook?: Pick<Webhook, "url" | "secret" | "uid">): string {
   let out = String(text);
   const secrets: string[] = [];
   if (hook) {
@@ -365,6 +383,8 @@ export function scrubSecrets(text: string, hook?: Pick<Webhook, "url" | "secret"
     if (hook.secret) secrets.push(hook.secret);
   }
   for (const s of secrets.filter((x) => x.length >= 6).sort((a, b) => b.length - a.length)) out = out.split(s).join("***");
+  // WxPusher 的 UID 单独抹:它常是 4–6 位短串,进上面的长串过滤会被漏掉(不是机密,但也没必要带出去)
+  if (hook && "uid" in hook && typeof hook.uid === "string" && hook.uid.length >= 4) out = out.split(hook.uid).join("***");
   return out.replace(/https?:\/\/\S+/gi, "<地址>").slice(0, 200);
 }
 
@@ -389,6 +409,15 @@ function clipBytes(text: string, max = TEXT_MAX_BYTES): string {
     out += ch;
   }
   return out + tail;
+}
+
+/** WxPusher 文本 content 上限 500 字(按 Unicode 码点数,不按字节),summary 上限 100 —— 超了直接拒绝请求 */
+const WXPUSHER_CONTENT_MAX = 500;
+function clipChars(text: string, max: number): string {
+  if ([...text].length <= max) return text;
+  const chars = [...text];
+  const tail = "\n…(完整内容见收件箱)";
+  return chars.slice(0, max - [...tail].length).join("") + tail;
 }
 
 export function messageText(m: Pick<NotifyMessage, "title" | "lines" | "link">, base = uiBase()): string {
@@ -427,6 +456,16 @@ export function webhookRequest(hook: Webhook, text: string, now: Date): { url: s
     const ts = now.getTime();
     return { url: hook.secret ? `${hook.url}&timestamp=${ts}&sign=${dingtalkSign(hook.secret, ts)}` : hook.url, body: { msgtype: "text", text: { content: text } } };
   }
+  if (hook.kind === "wxpusher") {
+    // WxPusher:凭据在 body,订阅者用 uids;summary 是通知栏预览,取首行去掉多余空白
+    const content = clipChars(text, WXPUSHER_CONTENT_MAX);
+    const summary = clipChars(content.split("\n").filter(Boolean)[0] ?? content, 100);
+    // SPT 个人令牌走 simple-push,不用 uids;标准 appToken + uids
+    if (hook.secret?.startsWith("SPT_")) {
+      return { url: hook.url, body: { content, spt: hook.secret, summary, contentType: 1 } };
+    }
+    return { url: hook.url, body: { appToken: hook.secret ?? "", uids: hook.uid ? [hook.uid] : [], content, summary, contentType: 1 } };
+  }
   return { url: hook.url, body: { msgtype: "text", text: { content: text } } };
 }
 
@@ -448,8 +487,10 @@ async function postWebhook(hook: Webhook, text: string, deps: Deps): Promise<voi
       if (!res.ok) throw new PushError(`平台拒绝(HTTP ${res.status})`, false);
       let j: Record<string, unknown> = {};
       try { j = JSON.parse(raw) as Record<string, unknown>; } catch { throw new PushError("平台返回的不是 JSON", false); }
-      const code = hook.kind === "feishu" ? (j.code ?? j.StatusCode) : j.errcode;
-      if (code === 0) return;
+      // WxPusher 成功码是 1000(其余三家都是 0);错误文字里同样可能带凭据,走统一的 scrub
+      const code = hook.kind === "wxpusher" ? j.code : hook.kind === "feishu" ? (j.code ?? j.StatusCode) : j.errcode;
+      const okCode = hook.kind === "wxpusher" ? 1000 : 0;
+      if (code === okCode) return;
       const msg = String(j.msg ?? j.errmsg ?? j.StatusMessage ?? "");
       throw new PushError(`平台返回错误 ${String(code)}${msg ? `:${msg}` : ""}`, false);
     } catch (e) {
@@ -805,7 +846,8 @@ export function notifyOverview(ctx: ServiceContext, opts: { def?: ScheduleDef | 
       system_supported: systemSupported(opts.platform),
       quiet: settings.quiet,
       cooldown_min: settings.cooldown_min,
-      webhooks: settings.webhooks.map((h) => ({ id: h.id, kind: h.kind, kind_label: WEBHOOK_RULES[h.kind].label, label: h.label, enabled: h.enabled, url: maskWebhookUrl(h.url), signed: h.kind !== "wecom" && !!h.secret })),
+      webhooks: settings.webhooks.map((h) => ({ id: h.id, kind: h.kind, kind_label: WEBHOOK_RULES[h.kind].label, label: h.label, enabled: h.enabled, url: maskWebhookUrl(h.url),
+        uid: h.uid ?? null, signed: (h.kind === "feishu" || h.kind === "dingtalk") && !!h.secret })),
     },
     inbox: { items: inbox.slice(0, 100), unread: inbox.filter((x) => !x.read).length, total: inbox.length },
   };
@@ -855,20 +897,33 @@ export async function notifyAction(ctx: ServiceContext, action: string, body: un
       return notifyOverview(ctx, { def });
     }
     case "webhooks/add": {
-      onlyKeys(b, ["kind", "url", "secret", "label"]);
-      if (!isKind(b.kind)) bad("kind 只能是 feishu / wecom / dingtalk");
+      onlyKeys(b, ["kind", "url", "secret", "label", "uid"]);
+      if (!isKind(b.kind)) bad("kind 只能是 feishu / wecom / dingtalk / wxpusher");
       const kind = b.kind as WebhookKind;
       const url = typeof b.url === "string" ? checkWebhookUrl(kind, b.url) : null;
-      if (!url) bad(`这不是${WEBHOOK_RULES[kind].label}群机器人的地址(只接受 ${WEBHOOK_RULES[kind].hosts.join(" / ")} 的官方机器人地址)`);
+      if (!url) bad(`这不是${WEBHOOK_RULES[kind].label}群机器人的地址(只接受 ${WEBHOOK_RULES[kind].hosts.join(" / ")} 的官方地址)`);
       // 企业微信群机器人没有签名密钥这一项:填了也用不上,别存下来让页面显示成「已签名」
       if (kind === "wecom" && b.secret !== undefined && b.secret !== "") bad("企业微信群机器人没有签名密钥,不用填");
+      if (kind !== "wxpusher" && b.uid !== undefined && b.uid !== "") bad(`${WEBHOOK_RULES[kind].label}不用填 UID`);
+      // WxPusher 两种凭据二选一、地址必须配对:SPT 个人令牌(SPT_ 开头)→ simple-push 地址;标准 appToken → message 地址 + 必填 uid
+      if (kind === "wxpusher") {
+        const spt = typeof b.secret === "string" && b.secret.trim().startsWith("SPT_");
+        if (!(typeof b.secret === "string" && b.secret.trim())) bad("WxPusher 需要填 appToken(或 SPT 个人令牌,公众号「个人推送」页复制)");
+        else if (spt !== url!.endsWith("/message/simple-push")) {
+          bad(spt ? "SPT 令牌要把地址填成 https://wxpusher.zjiecode.com/api/send/message/simple-push"
+                  : "appToken 要把地址填成 https://wxpusher.zjiecode.com/api/send/message");
+        } else if (!spt && !(typeof b.uid === "string" && b.uid.trim())) {
+          bad("标准方式(appToken)需要填 UID;图省事可以在公众号「个人推送」页拿 SPT 令牌,那样不用 UID");
+        }
+      }
       const secret = b.secret === undefined || b.secret === "" ? undefined : typeof b.secret === "string" && /^[\x21-\x7e]{8,128}$/.test(b.secret.trim()) ? b.secret.trim() : bad("签名密钥格式不对");
+      const uid = b.uid === undefined || b.uid === "" ? undefined : typeof b.uid === "string" && WXPUSHER_UID_RE.test(b.uid.trim()) ? b.uid.trim() : bad("UID 格式不对(字母数字,4–64 位)");
       const label = b.label === undefined ? "" : typeof b.label === "string" ? b.label.trim().slice(0, 40) : bad("label 必须是文字");
       await serial(async () => {
         const s = loadSettings(ctx.dataRoot);
         if (s.webhooks.length >= 10) bad("最多 10 个群机器人");
-        if (s.webhooks.some((h) => h.url === url)) bad("这个机器人已经加过了");
-        s.webhooks.push({ id: newId(), kind, url: url!, ...(secret ? { secret } : {}), label, enabled: true });
+        if (s.webhooks.some((h) => h.url === url && h.kind === kind && (kind !== "wxpusher" || h.uid === uid))) bad("这个机器人已经加过了");
+        s.webhooks.push({ id: newId(), kind, url: url!, ...(secret ? { secret } : {}), ...(uid ? { uid } : {}), label, enabled: true });
         await saveSettings(ctx.dataRoot, s);
       });
       return notifyOverview(ctx, { def });

@@ -482,19 +482,54 @@ export async function saveCodeBuddyLocation(dataRoot: string, input: string | nu
  * The chosen installed CLI is trusted executable code, not a sandbox boundary.
  * Bypass PowerShell 5.1's native-argument rewriting (empty args / JSON quotes).
  */
-function npmNodeEntry(bin: string): string | null {
+/**
+ * 解析标准 npm pwsh shim 的唯一调用目标（绝对路径）。三种真实形态都认：
+ *   node+js 型      `& "$basedir/node$exe" "$basedir/cli.cjs" $args`
+ *   条件分支型      Test-Path 里外两支写法略异（npm 的 codebuddy.ps1），目标一致即通过
+ *   原生 exe 型     `& "$basedir/node_modules/@anthropic-ai/claude-code/bin/claude.exe" $args`
+ * 严格口径：标准 npm shim 头部（shebang + $basedir 行，容忍 UTF-8 BOM）+ 全文唯一目标 +
+ * 目标禁插值字符（$ 与反引号）+ 目标文件真实存在。目标是什么类型（js / exe /
+ * 无扩展名 node 脚本）由调用方各自校验；拿不到可信目标返回 null。
+ */
+function npmShimTarget(bin: string): string | null {
   try {
     const stat = fs.statSync(bin);
     if (!stat.isFile() || stat.size > 64 * 1024) return null;
-    const source = fs.readFileSync(bin, "utf8").replace(/\r\n/g, "\n");
+    const source = fs.readFileSync(bin, "utf8").replace(/^\uFEFF/, "").replace(/\r\n/g, "\n");
     if (!source.startsWith("#!/usr/bin/env pwsh\n") ||
       !source.includes("$basedir=Split-Path $MyInvocation.MyCommand.Definition -Parent\n")) return null;
-    const targets = [...source.matchAll(/&\s+"(?:\$basedir\/)?node\$exe"\s+"\$basedir\/([^"\r\n]+)"\s+\$args\b/g)].map((m) => m[1]!);
-    if (!targets.length || new Set(targets).size !== 1 || /[$`]/.test(targets[0]!) || !/\.[cm]?js$/i.test(targets[0]!)) return null;
+    const targets = [...source.matchAll(/&\s+"(?:\$basedir\/)?(?:node\$exe"\s+"(?:\$basedir\/)?)?([^"\r\n]+)"\s+\$args\b/g)].map((m) => m[1]!);
+    if (!targets.length || new Set(targets).size !== 1 || /[$`]/.test(targets[0]!)) return null;
     const entry = path.resolve(path.dirname(bin), targets[0]!);
     if (!fs.statSync(entry).isFile()) return null;
     return entry;
   } catch { return null; }
+}
+
+function npmNodeEntry(bin: string): string | null {
+  const entry = npmShimTarget(bin);
+  if (!entry) return null;
+  if (/\.[cm]?js$/i.test(entry)) return entry;
+  // 无扩展名的 node 入口（npm 包常见，如 codebuddy 的 bin/codebuddy）：首行必须是
+  // 指向 node 的 shebang 才放行 —— node 前须是 / 或空格（"xx-node-thing" 不算），
+  // 后须是空白或行尾；BOM 已剥，防误拒。
+  if (!path.extname(entry)) {
+    try {
+      const first = fs.readFileSync(entry, "utf8").replace(/^\uFEFF/, "").split("\n")[0] ?? "";
+      if (/^#!.*[\/ ]node(\s|$)/.test(first)) return entry;
+    } catch { return null; }
+  }
+  return null;
+}
+
+/**
+ * Claude Code 等新版 npm 包的 shim 不再走 node+js，而是直接指向**原生 exe**。
+ * 目标必须是 .exe —— 解析出来的就是被信任的可执行文件本体，直接 spawn
+ * （不经任何 shell），参数照旧逐字传递。
+ */
+function npmExeEntry(bin: string): string | null {
+  const entry = npmShimTarget(bin);
+  return entry && /\.exe$/i.test(entry) ? entry : null;
 }
 
 export function executableInvocation(
@@ -512,8 +547,10 @@ export function executableInvocation(
     return { file: bin, args };
   }
   const entry = npmNodeEntry(bin);
-  if (!entry) throw new LocalAgentError("agent_windows_wrapper_unsupported", "Windows 仅支持原生 CLI 或标准 npm Node 启动器，请重新安装官方 CLI");
-  return { file: process.execPath, args: [entry, ...args] };
+  if (entry) return { file: process.execPath, args: [entry, ...args] };
+  const exe = npmExeEntry(bin);
+  if (exe) return { file: exe, args };
+  throw new LocalAgentError("agent_windows_wrapper_unsupported", "Windows 仅支持原生 CLI 或标准 npm 启动器（node+js 或原生 exe），请重新安装官方 CLI");
 }
 
 function oneLine(value: unknown): string | null {
@@ -1271,10 +1308,15 @@ export function parseCodeBuddyOutput(stdout: string): string {
     const value = item as { result?: unknown; response?: unknown; structured_output?: unknown; is_error?: unknown };
     if (value.is_error === true) throw new LocalAgentError("agent_failed", "CodeBuddy 本轮执行失败");
     if (value.structured_output !== undefined) return JSON.stringify(value.structured_output);
-    if (typeof value.result === "string" && value.result.trim()) return value.result;
-    if (typeof value.response === "string" && value.response.trim()) return value.response;
+    if (typeof value.result === "string" && value.result.trim()) return stripThinkTags(value.result);
+    if (typeof value.response === "string" && value.response.trim()) return stripThinkTags(value.response);
   }
   throw new LocalAgentError("agent_empty_output", "CodeBuddy 没有返回可见回答");
+}
+
+/** 个别模型会把推理痕迹（如 <think:opensource>…</think:opensource>）混进 result 文本；产品答案不允许携带。 */
+export function stripThinkTags(text: string): string {
+  return text.replace(/<think:[^>]*>[\s\S]*?<\/think:[^>]*>/g, "").replace(/<\/?think:[^>]*>/g, "").trim();
 }
 
 const AGENT_LABEL: Record<LocalAgentId, string> = { claude: "Claude Code", codebuddy: "CodeBuddy", codex: "Codex" };
@@ -1468,7 +1510,9 @@ export async function runLocalAgent(agent: LocalAgentId, opts: RunLocalAgentOpti
       opts.signal?.removeEventListener("abort", onAbort);
       // Windows may briefly retain a handle after process close. Retry within a
       // fixed bound; a persistent cleanup failure must never become success.
-      fs.rmSync(tmpDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+      // 实测 CLI 退出后 descendants 偶发还握着 tmpDir 句柄几百毫秒（杀毒扫描更久），
+      // 默认 5×100ms 不够 → 拉长到 12×250ms（约 3 秒窗口），探测偶发 cleanup 失败即消失。
+      fs.rmSync(tmpDir, { recursive: true, force: true, maxRetries: 12, retryDelay: 250 });
     };
     const finish = (fn: () => void) => {
       if (settled) return;
@@ -1509,10 +1553,24 @@ export async function runLocalAgent(agent: LocalAgentId, opts: RunLocalAgentOpti
       // 却无法证明整个进程组已经退出。两秒后杀整组，再等 close。
       hardKillTimer = setTimeout(() => {
         signalTree("SIGKILL");
-        killFallbackTimer = setTimeout(() => {
+        // Windows：taskkill /F 之后 stdio 管道收尾与子树退出可能超过 2 秒，实测出现
+        // "进程树退出未确认"的假阴性（2026-10-14，vibe-astock 旧架构上复现）。确认窗口
+        // 放宽到 5 秒，期间树仍活着就每秒补一次 KILL；确认成功或窗口耗尽才落定。
+        const confirmWindowMs = process.platform === "win32" ? 5_000 : 2_000;
+        const retryKillMs = process.platform === "win32" ? 1_000 : confirmWindowMs;
+        const hardKillAt = Date.now();
+        let lastKill = hardKillAt;
+        killFallbackTimer = setInterval(() => {
           const confirmed = closed && !processTreeAlive() && (process.platform !== "win32" || treeSignalled);
-          finish(() => reject(confirmed ? terminationError! : new LocalAgentError("agent_shutdown_failed", `${label} 进程树退出未确认，不能视为已取消`)));
-        }, 2_000);
+          if (confirmed || Date.now() - hardKillAt >= confirmWindowMs) {
+            finish(() => reject(confirmed ? terminationError! : new LocalAgentError("agent_shutdown_failed", `${label} 进程树退出未确认，不能视为已取消`)));
+            return;
+          }
+          if (process.platform === "win32" && Date.now() - lastKill >= retryKillMs) {
+            lastKill = Date.now();
+            signalTree("SIGKILL");
+          }
+        }, 250);
         // Do not let Node exit while this shutdown acknowledgement is pending.
       }, 2_000);
       // The detached child may close before its descendants; keep the bounded wait alive.
