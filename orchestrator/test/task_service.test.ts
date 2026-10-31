@@ -7,6 +7,7 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 import "../src/finance/register.ts";
+import { detectPython } from "../src/init.ts";
 import { addReport } from "../src/report_library.ts";
 import { resumeUnifiedTask, runUnifiedTask } from "../src/task_service.ts";
 import type { DeepResearchBackend } from "../src/engines/deep_engine.ts";
@@ -15,8 +16,8 @@ import { ServiceError, type ServiceContext } from "../src/service.ts";
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), "vra-task-service-"));
-const PYTHON = process.env.VRA_PYTHON?.trim()
-  || (process.platform === "win32" ? "python" : path.join(REPO, "..", ".venv", "bin", "python"));
+const PYTHON = process.env.VRA_PYTHON?.trim() || detectPython(REPO) || detectPython(path.join(REPO, ".."))
+  || (process.platform === "win32" ? "python" : "python3");
 const ctx = (dataRoot: string): ServiceContext => ({ repoRoot: REPO, dataRoot,
   python: PYTHON, node: process.execPath });
 const task = (id: string, requestedMode: "auto" | "quick" | "deep" = "auto") => ({

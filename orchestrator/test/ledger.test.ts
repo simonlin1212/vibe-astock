@@ -7,6 +7,7 @@ import { test } from "node:test";
 import "../src/finance/register.ts"; // 测试文件也是入口:插件要先注册
 import { ENVELOPE_KEYS, LedgerError, checkRecord, insertRecords, kinds, listAll, listAllIssues, listRecords, listRecordsChecked, removeRecord, replaceRecords, upsertRecord } from "../src/ledger.ts";
 import { assertKnownFormats } from "../src/formats.ts";
+import { nowIso } from "../src/fsutil.ts";
 import { PLUGIN_SCHEMA } from "../src/plugin.ts";
 
 function tmpRoot(): string {
@@ -167,6 +168,87 @@ test("种类表来自插件,不是 Core 写死的", () => {
     // 信封字段归 Core,垂类不许重名 —— 注册期就该拦住
     for (const e of ENVELOPE_KEYS) assert.ok(!(e in def.properties), `${k} 不该声明信封字段 ${e}`);
     for (const r of def.required) assert.ok(r in def.properties, `${k}.required 的 ${r} 缺 properties`);
+  }
+});
+
+// 时钟固定在同一毫秒:不靠机器快慢制造窗口,旧实现(直接取当前时刻)每次都红
+const T0 = Date.parse("2026-10-28T09:00:00.000+08:00");
+const at = (ms: number) => nowIso(new Date(ms));
+const closed = { symbol: "600519", closed_at: "2026-09-01", price: 1200, shares: 1, cost: 1000 };
+
+test("🔴 改过的记录 updated_at 一定晚于上一版:写完马上改(同一毫秒,或整批录入把 created_at 往后排了几毫秒)也不能和 created_at 相等", (t) => {
+  t.mock.timers.enable({ apis: ["Date"], now: T0 });
+  const root = tmpRoot();
+  const k = "closed_position";
+  const one = upsertRecord(root, k, { ...closed });
+  assert.equal(one.created_at, at(T0));
+  assert.equal(upsertRecord(root, k, { ...closed, id: one.id, note: "改过" }).updated_at, at(T0 + 1), "同一毫秒里改");
+  // 整批 3 条排在 T0+1..T0+3(接着已有最晚的那条):改最后一条,时钟还停在 T0
+  const last = insertRecords(root, k, [{ ...closed }, { ...closed }, { ...closed }]).at(-1)!;
+  assert.equal(last.created_at, at(T0 + 3));
+  const edited = upsertRecord(root, k, { ...closed, id: last.id, note: "改过" });
+  assert.equal(edited.updated_at, at(T0 + 4));
+  // 整组替换按条目序号往后排(base + i),这里只要求比上一版晚
+  const { saved } = replaceRecords(root, k, () => true, listRecords(root, k).map((r) => (r.id === last.id ? { ...r, note: "再改" } : r)));
+  assert.equal(saved.length, 1);
+  assert.ok(saved[0]!.updated_at > edited.updated_at, `${edited.updated_at} → ${saved[0]!.updated_at}`);
+});
+
+test("🔴 新记录的录入时间晚于这个种类里已有的每一条:同一毫秒里接连新增、紧跟在整批录入后面单条或整组新增,先后也不能乱", (t) => {
+  t.mock.timers.enable({ apis: ["Date"], now: T0 });
+  const root = tmpRoot();
+  const k = "closed_position";
+  const a = upsertRecord(root, k, { ...closed });
+  const b = upsertRecord(root, k, { ...closed });
+  const batch = insertRecords(root, k, [{ ...closed }, { ...closed }]);
+  const one = upsertRecord(root, k, { ...closed });
+  assert.deepEqual([a, b, ...batch, one].map((r) => r.created_at), [0, 1, 2, 3, 4].map((i) => at(T0 + i)));
+  // 整组替换按条目序号往后排(base + i),这里只要求晚于已有的每一条
+  const { saved } = replaceRecords(root, k, () => true, [...listRecords(root, k), { ...closed }]);
+  assert.ok(saved[0]!.created_at > one.created_at, `${one.created_at} / ${saved[0]!.created_at}`);
+});
+
+test("🔴 已有记录是未来时间(系统时间曾被调快):1 秒内的照样接着排,更远的不跟,新增和修改都回到当前时刻", (t) => {
+  t.mock.timers.enable({ apis: ["Date"], now: T0 });
+  const root = tmpRoot();
+  const k = "closed_position";
+  t.mock.timers.setTime(T0 + 3_600_000);
+  const future = upsertRecord(root, k, { ...closed });
+  t.mock.timers.setTime(T0);
+  const fresh = upsertRecord(root, k, { ...closed });
+  assert.equal(fresh.created_at, at(T0), "一小时后的那条不带着新记录走");
+  assert.equal(insertRecords(root, k, [{ ...closed }])[0]!.created_at, at(T0 + 1), "只接着正常的那条");
+  assert.equal(upsertRecord(root, k, { ...closed, id: future.id, note: "改过" }).updated_at, at(T0), "改未来时间的那条,也按当前时刻");
+  // 1 秒以内的(整批录入往后排出来的就是这种)仍然接着排
+  t.mock.timers.setTime(T0 + 500);
+  const near = upsertRecord(root, k, { ...closed });
+  t.mock.timers.setTime(T0);
+  assert.equal(upsertRecord(root, k, { ...closed }).created_at, at(T0 + 501));
+  assert.equal(upsertRecord(root, k, { ...closed, id: near.id, note: "改过" }).updated_at, at(T0 + 501));
+});
+
+test("整组替换的未来时间上限对照当前时刻,不随条目位置推进", (t) => {
+  t.mock.timers.enable({ apis: ["Date"], now: T0 });
+  const k = "closed_position";
+  for (const futureIndex of [0, 1]) {
+    const root = tmpRoot();
+    t.mock.timers.setTime(T0 + 500);
+    const near = upsertRecord(root, k, { ...closed });
+    t.mock.timers.setTime(T0 + 1_500);
+    const future = upsertRecord(root, k, { ...closed });
+    t.mock.timers.setTime(T0);
+
+    const inputs = [
+      { ...closed, id: future.id, note: "改远处" },
+      { ...closed, id: near.id, note: "改近处" },
+    ];
+    if (futureIndex === 1) inputs.reverse();
+    const { saved } = replaceRecords(root, k, () => true, inputs);
+    const farUpdated = saved.find((r) => r.id === future.id)!;
+    const nearUpdated = saved.find((r) => r.id === near.id)!;
+    assert.equal(farUpdated.updated_at, at(T0 + 501 + futureIndex), `远处记录在第 ${futureIndex} 位按 base+i 更新`);
+    assert.ok(Date.parse(farUpdated.updated_at) <= T0 + 1_000);
+    assert.ok(Date.parse(nearUpdated.updated_at) > Date.parse(near.updated_at), "1 秒内的记录仍向后推进");
   }
 });
 
