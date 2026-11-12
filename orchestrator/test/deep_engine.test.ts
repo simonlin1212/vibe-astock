@@ -6,6 +6,7 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 import "../src/finance/register.ts";
+import { detectPython } from "../src/init.ts";
 import { DeepExecutionError, DeepResearchEngine, type DeepResearchBackend } from "../src/engines/deep_engine.ts";
 import { deepTargetOf, FinanceDeepTargetResolver } from "../src/finance/deep_target.ts";
 import { addReport } from "../src/report_library.ts";
@@ -18,7 +19,8 @@ import { researchFailure } from "../src/research_failure.ts";
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), "vra-deep-engine-"));
 const ctx = (dataRoot: string): ServiceContext => ({ repoRoot: REPO, dataRoot,
-  python: path.join(REPO, "..", ".venv", "bin", "python"), node: process.execPath });
+  python: process.env.VRA_PYTHON?.trim() || detectPython(REPO) || detectPython(path.join(REPO, ".."))
+    || (process.platform === "win32" ? "python" : "python3"), node: process.execPath });
 
 test("Deep 已知启动校验给出操作指引，但不透传异常正文", async (t) => {
   const dataRoot = tmp();
