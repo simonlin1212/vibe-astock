@@ -9,7 +9,7 @@
 
 <p align="center">
   <a href="LICENSE"><img alt="License: Apache-2.0" src="https://img.shields.io/badge/license-Apache--2.0-blue"></a>
-  <a href="CHANGELOG.md"><img alt="源码版本 v2.1.5" src="https://img.shields.io/badge/source-v2.1.5-F35D2B"></a>
+  <a href="CHANGELOG.md"><img alt="源码版本 v2.1.6" src="https://img.shields.io/badge/source-v2.1.6-F35D2B"></a>
   <img alt="A 股短线" src="https://img.shields.io/badge/market-A%20%E8%82%A1-c92a2a">
   <img alt="182 个数据端点" src="https://img.shields.io/badge/data-182%20endpoints-2f9e44">
   <img alt="AI：Claude Code、Codex、WorkBuddy 或模型 API" src="https://img.shields.io/badge/AI-Claude%20Code%20%7C%20Codex%20%7C%20WorkBuddy%20%7C%20API-black">

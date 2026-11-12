@@ -3,6 +3,25 @@
 格式遵循 Keep a Changelog，并采用语义化版本。v1.1.3 及更早的条目保留旧版原文。
 底座（Vibe Research）此前的变化见 [Vibe Research 的 CHANGELOG](https://github.com/simonlin1212/Vibe-Research/blob/main/CHANGELOG.md)。
 
+## [2.1.6] - 2026-11-12
+
+修本机 CodeBuddy CLI 带工具的提问必失败（issue #28）、token 登录后点运行链接仍要求 token（issue #27）；服务被停掉时不再留下 Agent 的临时工作区。短线功能和页面用法都没有变化。
+
+### 修复
+
+- **CodeBuddy CLI 带工具的提问必失败**（#28，提交 `21be404`，感谢 @HadesDoZ 的原因分析和补丁）：CLI 一次写出结果后立刻 `process.exit()`，stdout 是管道时超过约 64 KB 的部分丢失，JSON 断在半截，报 `agent_bad_output`。现在 Claude Code / CodeBuddy 的回答先写进临时文件、进程结束后再读，4 MB 输出上限照旧；Codex 仍走管道。
+- **开着交互式 CodeBuddy 时提问直接退出**（#28）：CLI 不带 `--port` 时会绑固定端口，被交互会话占着就 `EADDRINUSE`。现在 CLI 帮助里列出 `--port` 时传 `--port 0`；老版本不传。
+- **独立安装的 CodeBuddy CLI 不再被套上 WorkBuddy 精简包**（Vibe Research #59 查出的同一问题）：`CODEBUDDY_FORCE_LITE_WB_BUNDLE=1` 现在只给 WorkBuddy 桌面版自带的 CLI。
+- **token 登录后点运行链接仍要求 token**（#27）：运行列表和运行详情页的安全策略让浏览器把点链接当成跨站请求、不带登录 cookie。现在这两个页面允许同站跳转（仍不允许脚本），报告查看器不变。
+- **服务被停掉时留下 Agent 临时工作区**：本机 Agent 还在回答时停掉服务，临时工作区（里面有回答原文、上传的图片）原来会留在系统临时目录。现在退出前同步删掉。
+
+### 测试
+
+- macOS（2026-11-12）：后端全套 1462 项：1452 通过、8 跳过，2 项按时间判断的用例在机器高负载时没等到假 CLI 启动，单独重跑通过；类型检查通过。新增回归用例：假 CLI 一次写出超过 64 KB 后立刻 `process.exit()`、超过 4 MB 仍按输出过大处理、帮助里有无 `--port`、独立 CLI 不设精简包、运行页安全策略、父服务收到 SIGTERM 时临时工作区被删。
+- 跨平台 CI（Ubuntu / macOS / Windows × Node 22 / 24）：修复提交 6 组全部通过。
+- 独立审查（Codex 6.1 Sol）：报 1 条（服务被停掉时临时文件可能留下），已修并补回归测试，修复前这条测试失败、修复后通过；修复复核无问题。
+- 没有 Windows 实机；没用真实 CodeBuddy CLI 跑（补丁作者在 macOS 用真实 CLI 验证过同样的改法）。
+
 ## [2.1.5] - 2026-10-29
 
 修「工作空间 → 提醒」里公告标题显示成乱码的问题（issue #25，提交 `2eb9bb9`）；短线功能和页面用法都没有变化。

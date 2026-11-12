@@ -9,7 +9,7 @@
 
 <p align="center">
   <a href="LICENSE"><img alt="License: Apache-2.0" src="https://img.shields.io/badge/license-Apache--2.0-blue"></a>
-  <a href="CHANGELOG.md"><img alt="Source v2.1.5" src="https://img.shields.io/badge/source-v2.1.5-F35D2B"></a>
+  <a href="CHANGELOG.md"><img alt="Source v2.1.6" src="https://img.shields.io/badge/source-v2.1.6-F35D2B"></a>
   <img alt="China A-shares, short-term" src="https://img.shields.io/badge/market-China%20A--shares-c92a2a">
   <img alt="182 data endpoints" src="https://img.shields.io/badge/data-182%20endpoints-2f9e44">
   <img alt="AI: Claude Code, Codex, WorkBuddy, or a model API" src="https://img.shields.io/badge/AI-Claude%20Code%20%7C%20Codex%20%7C%20WorkBuddy%20%7C%20API-black">
