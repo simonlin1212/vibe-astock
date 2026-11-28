@@ -7,11 +7,15 @@ import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
 import "../src/finance/register.ts";
+import { detectPython } from "../src/init.ts";
 import { currentPlugin } from "../src/plugin.ts";
 import { ServiceError, assertArgs, blockStatusFromEnvelope, pageQuery, type ServiceContext } from "../src/service.ts";
 import type { EndpointDef } from "../src/registry.ts";
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
+/** 解释器:VRA_PYTHON → 仓库 .venv → 上一级 .venv(开发布局)→ PATH 上的 python3;不写死任何机器的绝对路径 */
+const PY = process.env.VRA_PYTHON?.trim() || detectPython(REPO) || detectPython(path.join(REPO, ".."))
+  || (process.platform === "win32" ? "python" : "python3");
 /**
  * 上下文真正会注入哪些键 —— **从垂类的 pageContext.resolve 真实产出里取**,
  * 不在测试里手写一份(手写的那份迟早与实现漂移,而漂移的表现是"棘轮全绿但没查到东西")。
@@ -138,7 +142,7 @@ test("🔴 块状态跟着信封走:信封 failed / partial 不许被记成 ok(�
 });
 
 test("🔴 传给端点的参数键必须**函数真的收得下** —— 白名单放行 ≠ 收得下(全局键 limit/date 对任何端点都放行,而全市场龙虎榜收的是 trade_date:整包注入进去 TypeError,信封 failed、证据 0 条,界面上曾一直显示正常)", () => {
-  const py = process.env.VRA_PYTHON ?? path.join(REPO, "..", ".venv", "bin", "python");
+  const py = PY;
   const helper = path.join(path.dirname(fileURLToPath(import.meta.url)), "helpers", "endpoint_signatures.py");
   const r = spawnSync(py, [helper], { encoding: "utf8", cwd: REPO });
   // 🔴 取不到签名就**判红**,不许跳过 —— 跳过的棘轮等于没有棘轮
@@ -164,7 +168,7 @@ test("🔴 传给端点的参数键必须**函数真的收得下** —— 白名
 });
 
 test("🔴 页面注入的上下文参数,改名后必须是该端点函数真收的参数名", () => {
-  const py = process.env.VRA_PYTHON ?? path.join(REPO, "..", ".venv", "bin", "python");
+  const py = PY;
   const helper = path.join(path.dirname(fileURLToPath(import.meta.url)), "helpers", "endpoint_signatures.py");
   const r = spawnSync(py, [helper], { encoding: "utf8", cwd: REPO });
   assert.equal(r.status, 0, `签名导出失败:${(r.stderr || "").slice(-300)}`);

@@ -387,6 +387,39 @@ export function listRecords(dataRoot: string, kind: string): LedgerRecord[] {
 }
 
 /**
+ * 已有时间比当前时刻最多晚这么多,才接着它往后排。
+ * 🔴 超过的当成系统时间曾被调快时写下的未来时间,不跟着走:否则以后每条都排到那个未来时刻之后,
+ *    删掉那条也恢复不了,按录入 / 修改时间判断先后的地方会把早写的记录判成晚写的。
+ */
+const MAX_AHEAD_MS = 1_000;
+
+/**
+ * 更新时刻:晚于上一版的 `updated_at`(上一版是未来时间的除外,见 MAX_AHEAD_MS)。
+ * 🔴 写完马上改会落在同一毫秒;整批录入还把 `created_at` 往后排了几毫秒 —— 直接取当前时刻,
+ *    改过的记录会和 `created_at` 相等甚至更早,靠 `updated_at === created_at` 判断"没改过"的地方就会认错。
+ * 🔴 未来时间上限对照真实当前时刻,不是按录入顺序推进后的 `at`;后者可能让超出上限的上一版继续往后排。
+ */
+function updatedAfter(prev: string, at: string, now: number): string {
+  const p = Date.parse(prev);
+  const a = Date.parse(at);
+  return Number.isFinite(p) && a <= p && p - now <= MAX_AHEAD_MS ? nowIso(new Date(p + 1)) : at;
+}
+
+/**
+ * 新记录的录入时刻(毫秒):晚于这个种类里已有的每一条(未来时间的除外,见 MAX_AHEAD_MS)。
+ * 🔴 录入先后要能从记录本身还原:同一毫秒里接连新增,或紧跟在整批录入(往后排了几毫秒)后面新增,
+ *    直接取当前时刻会和前面的相等甚至更早,先后就乱了。
+ */
+function createdAfter(records: readonly LedgerRecord[], at: number): number {
+  let last = -Infinity;
+  for (const r of records) {
+    const t = Date.parse(r.created_at);
+    if (Number.isFinite(t) && t > last && t - at <= MAX_AHEAD_MS) last = t;
+  }
+  return Math.max(at, last + 1);
+}
+
+/**
  * 新增或更新一条。带 `id` 且能找到 = 更新(**整条替换,不做字段级合并**);否则新增。
  * 不合并是刻意的:合并会让"我把某个字段清空了"和"我这次没提这个字段"变得无法区分。
  */
@@ -406,7 +439,7 @@ export function upsertRecord(dataRoot: string, kind: string, input: Record<strin
       const i = data.records.findIndex((r) => r.id === id);
       if (i < 0) throw new LedgerError("not_found", `台账里没有这条记录:${id}`);
       const prev = data.records[i]!;
-      const next: LedgerRecord = { ...rest, id, kind, created_at: prev.created_at, updated_at: now };
+      const next: LedgerRecord = { ...rest, id, kind, created_at: prev.created_at, updated_at: updatedAfter(prev.updated_at, now, Date.parse(now)) };
       data.records[i] = next;
       // 🔴 比**整条内容**,不只比 id 与时间戳:并发覆盖可以保留同一个 id、
       //    同一毫秒里 `updated_at` 还会一模一样 ⇒ 只比标识的话,字段已经是别人的版本也照样报成功。
@@ -417,7 +450,8 @@ export function upsertRecord(dataRoot: string, kind: string, input: Record<strin
     // 便宜的兜底:UUID 撞的概率可以忽略,但"忽略"和"检查过"在数据丢失面前不是一回事
     for (let i = 0; data.records.some((r) => r.id === fresh) && i < 5; i++) fresh = newId(kind);
     if (data.records.some((r) => r.id === fresh)) throw new LedgerError("id_collision", "生成 id 连续撞车,请重试");
-    const next: LedgerRecord = { ...rest, id: fresh, kind, created_at: now, updated_at: now };
+    const at = nowIso(new Date(createdAfter(data.records, Date.parse(now))));
+    const next: LedgerRecord = { ...rest, id: fresh, kind, created_at: at, updated_at: at };
     data.records.push(next);
     saveVerified(file, kind, data, (rs) => sameRecord(rs.find((r) => r.id === fresh), next));
     return next;
@@ -453,7 +487,7 @@ export function insertRecords(dataRoot: string, kind: string, inputs: readonly R
   if (!rests.length) return [];
   return withLock(file, () => {
     const data = loadFile(file, kind);
-    const base = Date.now();
+    const base = createdAfter(data.records, Date.now());
     const taken = new Set(data.records.map((r) => r.id));
     const added = rests.map((rest, i) => {
       let fresh = newId(kind);
@@ -509,7 +543,8 @@ export function replaceRecords(
     const data = loadFile(file, kind);
     const group = new Map(data.records.filter(match).map((r) => [r.id, r]));
     const taken = new Set(data.records.map((r) => r.id));
-    const base = Date.now();
+    const now = Date.now();
+    const base = createdAfter(data.records, now);
     const saved: LedgerRecord[] = [];
     const next = items.map(({ id, rest }, i) => {
       const at = nowIso(new Date(base + i));
@@ -517,7 +552,7 @@ export function replaceRecords(
         const prev = group.get(id);
         if (!prev) throw new LedgerError("not_found", `这一组里没有这条记录:${id}`);
         if (bodyKey(prev) === bodyKey(rest)) return prev;
-        const r = { ...rest, id, kind, created_at: prev.created_at, updated_at: at } as LedgerRecord;
+        const r = { ...rest, id, kind, created_at: prev.created_at, updated_at: updatedAfter(prev.updated_at, at, now) } as LedgerRecord;
         saved.push(r);
         return r;
       }

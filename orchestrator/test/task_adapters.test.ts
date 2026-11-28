@@ -6,13 +6,14 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 import "../src/finance/register.ts";
+import { detectPython } from "../src/init.ts";
 import { addReport } from "../src/report_library.ts";
 import { ProductTaskOperations, ReportTaskMaterials, splitQuickPassages } from "../src/task_adapters.ts";
 import { TaskRouteError, TaskRouter, makeResearchTask, type ResearchTask } from "../src/task_router.ts";
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
-const PYTHON = process.env.VRA_PYTHON?.trim()
-  || (process.platform === "win32" ? "python" : path.join(REPO, "..", ".venv", "bin", "python"));
+const PYTHON = process.env.VRA_PYTHON?.trim() || detectPython(REPO) || detectPython(path.join(REPO, ".."))
+  || (process.platform === "win32" ? "python" : "python3");
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), "vra-task-adapter-"));
 const b64 = (text: string) => Buffer.from(text, "utf8").toString("base64");
 
