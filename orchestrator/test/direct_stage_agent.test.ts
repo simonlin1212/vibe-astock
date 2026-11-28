@@ -393,3 +393,10 @@ test("端点返回跳转(响应体还挂着):本轮立刻失败,带上结构化�
   assert.equal(hits, 1);
   assert.equal(out.finalResponse, "");
 });
+
+test("vibe-astock #30:risk 阶段没取筹码时,提示词要求写成取数范围不含,而不是缺数据", () => {
+  const stages = fs.readFileSync(new URL("../src/finance/stages.ts", import.meta.url), "utf8");
+  const line = stages.split("\n").find((l) => l.includes("chip_distribution") && l.includes("bs_kline_qfq.json")) ?? "";
+  assert.ok(line.includes("本次取数范围不含筹码数据"), "给出固定说法");
+  assert.ok(line.includes("不是取数失败"), "说明文件不存在不等于取数失败");
+});

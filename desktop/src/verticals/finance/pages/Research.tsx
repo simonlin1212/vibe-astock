@@ -543,6 +543,14 @@ export function Research() {
             <span className="rounded-full bg-muted/50 px-2 py-0.5 text-[11px]">{STATUS_CN[active.status] ?? active.status}</span>
             {active.evidence_count !== null && <span className="text-xs text-muted-foreground">证据 {active.evidence_count} 条</span>}
             {active.calculation_count !== null && <span className="text-xs text-muted-foreground">计算 {active.calculation_count} 项</span>}
+            {/* 跑完了就在这里给入口(#30):以前要到下面「研究归档」里点这次运行才看得到报告。
+                资料不完整、失败的也给：点开等于从归档打开，报告能不能看由报告卡自己说明 */}
+            {active.finished_at !== null && report?.run_id !== active.run_id && (
+              <button type="button" onClick={() => void openReport(active.run_id)}
+                className="ml-auto inline-flex items-center gap-1.5 rounded-lg border border-primary/40 px-2.5 py-1 text-xs text-primary hover:bg-primary/10">
+                <FileText className="h-3.5 w-3.5" /> 查看报告
+              </button>
+            )}
           </div>
           {/* 阶段逐个显示 —— 用户要知道它在哪一步，而不是看一个转圈 */}
           <div className="research-stages" aria-label="研究阶段索引">
